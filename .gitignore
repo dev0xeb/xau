@@ -17,3 +17,15 @@ data/processed/
 # OS Artifacts
 .DS_Store
 Thumbs.db
+
+# Secrets & Environment Variables
+.env
+*.env
+
+# Runtime Logs & Databases
+*.db
+*.jsonl
+execution_engine/audit/trade_journal.db
+execution_engine/audit/trade_journal.jsonl
+decision_engine/decision_logs/
+charts/

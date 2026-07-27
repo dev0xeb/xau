@@ -1,0 +1,18 @@
+{
+  "symbol": "XAUUSD",
+  "digits": 2,
+  "spread_usd": 0.15,
+  "point_size": 0.01,
+  "tick_size": 0.01,
+  "tick_value": 1.0,
+  "contract_size": 100.0,
+  "min_lot": 0.01,
+  "max_lot": 100.0,
+  "volume_step": 0.01,
+  "stops_level": 10,
+  "freeze_level": 0,
+  "execution_mode": 1,
+  "filling_mode": 1,
+  "leverage": 2000,
+  "currency": "USD"
+}

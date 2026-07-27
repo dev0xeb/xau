@@ -1,9 +1,14 @@
 {
-  "timestamp_utc": "2026-07-27T11:06:50.045431+00:00",
-  "broker_connected": true,
-  "tick_feed_alive": true,
-  "decision_engine_alive": true,
+  "timestamp_utc": "2026-07-27T21:45:44.134188+00:00",
+  "heartbeat_generation": 193,
+  "subsystems": {
+    "broker_heartbeat": true,
+    "market_data_heartbeat": true,
+    "oms_heartbeat": true,
+    "execution_queue_heartbeat": true,
+    "decision_engine_heartbeat": true
+  },
   "queue_depth": 0,
-  "last_latency_ms": 0.0,
+  "last_latency_ms": 45.0,
   "system_health": "HEALTHY"
 }
