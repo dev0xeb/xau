@@ -1,0 +1,13 @@
+{
+  "candidate_id": "CAND-0010",
+  "execution_uuid": "a942e089da8a4a6ca7b380b3b058aeec",
+  "order_uuid": "ed609bdd-e880-4c75-85a5-02f3f3cff41d",
+  "oms_uuid": "dea9573b-227b-4f68-b581-dbb3ec2bf98e",
+  "oms_state": "FILLED",
+  "direction": "BUY",
+  "volume_lots": 0.085,
+  "created_at_utc": "2026-07-27T11:06:50.038868+00:00",
+  "broker_ticket": 1010,
+  "broker_fill_price": 2350.5,
+  "execution_latency_ms": 0.0
+}
