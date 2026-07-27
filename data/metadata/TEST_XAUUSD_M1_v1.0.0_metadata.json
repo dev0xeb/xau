@@ -1,0 +1,30 @@
+{
+  "dataset_id": "TEST_XAUUSD_M1",
+  "version": "1.0.0",
+  "instrument": "XAUUSD",
+  "granularity": "M1",
+  "source": "REAL_HISTORICAL_DATA",
+  "created_at_utc": "2026-07-27T10:30:37.954913+00:00",
+  "sha256_checksum": "39b7331c270670cdaa8569b9fd03667fab7b444a2527c30acdd30fe79b1726a6",
+  "file_path": "C:\\Users\\HP\\AppData\\Local\\Temp\\pytest-of-HP\\pytest-28\\test_generate_catalog0\\test_clean_m1.parquet",
+  "row_count": 10,
+  "date_range": {
+    "start_utc": "2024-01-02 08:00:00+00:00",
+    "end_utc": "2024-01-02 08:09:00+00:00"
+  },
+  "schema": {
+    "timestamp": "datetime64[us, UTC]",
+    "open": "float64",
+    "high": "float64",
+    "low": "float64",
+    "close": "float64",
+    "tick_volume": "int64",
+    "spread": "float64",
+    "mid": "float64"
+  },
+  "audit_summary": {
+    "quality_score": 100.0,
+    "passed_audit": true,
+    "anomalies_detected": 0
+  }
+}

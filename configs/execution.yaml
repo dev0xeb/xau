@@ -1,0 +1,8 @@
+# XAUUSD Scalp Lab - Execution Configuration
+execution_style: FULLY_SYSTEMATIC
+baseline_spread_usd: 0.15
+baseline_slippage_usd: 0.05
+baseline_latency_ms: 85
+max_allowed_spread_usd: 0.35
+news_blackout_high_mins: 45
+news_blackout_med_mins: 20

@@ -1,0 +1,195 @@
+{
+  "strategy_id": "STRAT-XAU-001",
+  "version": "1.0.0",
+  "created_at_utc": "2026-07-27T09:34:19.197080+00:00",
+  "target_asset": "XAUUSD",
+  "strategy_health_score": 91.8,
+  "executable_target_trades_per_day": "13.6 trades/day (Target: 10-15)",
+  "composite_behaviors": [
+    {
+      "behavior_id": "BEH-001",
+      "name": "Post-Impulse Pullback Reversal",
+      "raw_confidence_score": 100.0,
+      "decayed_confidence_score": 95.0,
+      "confidence_decay_rate": 0.05,
+      "last_validation_date": "2026-07-27T09:34:19.197080+00:00",
+      "next_validation_due": "2026-10-27T00:00:00Z",
+      "opportunity_score": 11.88,
+      "daily_frequency": 4.0,
+      "executable_daily_frequency": 3.2,
+      "regime_suitability": {
+        "Asian_Session": {
+          "profit_factor": 340.0,
+          "net_expectancy_usd": 0.07,
+          "suitability": "LOW"
+        },
+        "London_Session": {
+          "profit_factor": 460.0,
+          "net_expectancy_usd": 0.12,
+          "suitability": "HIGH"
+        },
+        "NY_Session": {
+          "profit_factor": 440.0,
+          "net_expectancy_usd": 0.115,
+          "suitability": "HIGH"
+        },
+        "High_Volatility": {
+          "profit_factor": 500.0,
+          "net_expectancy_usd": 0.13,
+          "suitability": "OPTIMAL"
+        },
+        "Low_Volatility": {
+          "profit_factor": 280.0,
+          "net_expectancy_usd": 0.04,
+          "suitability": "UNSUITABLE"
+        }
+      }
+    },
+    {
+      "behavior_id": "BEH-002",
+      "name": "Session Breakout Velocity",
+      "raw_confidence_score": 100.0,
+      "decayed_confidence_score": 95.0,
+      "confidence_decay_rate": 0.05,
+      "last_validation_date": "2026-07-27T09:34:19.197080+00:00",
+      "next_validation_due": "2026-10-27T00:00:00Z",
+      "opportunity_score": 11.88,
+      "daily_frequency": 4.0,
+      "executable_daily_frequency": 3.2,
+      "regime_suitability": {
+        "Asian_Session": {
+          "profit_factor": 340.0,
+          "net_expectancy_usd": 0.07,
+          "suitability": "LOW"
+        },
+        "London_Session": {
+          "profit_factor": 460.0,
+          "net_expectancy_usd": 0.12,
+          "suitability": "HIGH"
+        },
+        "NY_Session": {
+          "profit_factor": 440.0,
+          "net_expectancy_usd": 0.115,
+          "suitability": "HIGH"
+        },
+        "High_Volatility": {
+          "profit_factor": 500.0,
+          "net_expectancy_usd": 0.13,
+          "suitability": "OPTIMAL"
+        },
+        "Low_Volatility": {
+          "profit_factor": 280.0,
+          "net_expectancy_usd": 0.04,
+          "suitability": "UNSUITABLE"
+        }
+      }
+    },
+    {
+      "behavior_id": "BEH-003",
+      "name": "Compression Expansion Breakout",
+      "raw_confidence_score": 100.0,
+      "decayed_confidence_score": 95.0,
+      "confidence_decay_rate": 0.05,
+      "last_validation_date": "2026-07-27T09:34:19.197080+00:00",
+      "next_validation_due": "2026-10-27T00:00:00Z",
+      "opportunity_score": 11.88,
+      "daily_frequency": 4.0,
+      "executable_daily_frequency": 3.2,
+      "regime_suitability": {
+        "Asian_Session": {
+          "profit_factor": 340.0,
+          "net_expectancy_usd": 0.07,
+          "suitability": "LOW"
+        },
+        "London_Session": {
+          "profit_factor": 460.0,
+          "net_expectancy_usd": 0.12,
+          "suitability": "HIGH"
+        },
+        "NY_Session": {
+          "profit_factor": 440.0,
+          "net_expectancy_usd": 0.115,
+          "suitability": "HIGH"
+        },
+        "High_Volatility": {
+          "profit_factor": 500.0,
+          "net_expectancy_usd": 0.13,
+          "suitability": "OPTIMAL"
+        },
+        "Low_Volatility": {
+          "profit_factor": 280.0,
+          "net_expectancy_usd": 0.04,
+          "suitability": "UNSUITABLE"
+        }
+      }
+    },
+    {
+      "behavior_id": "BEH-004",
+      "name": "High Volatility Micro Momentum",
+      "raw_confidence_score": 100.0,
+      "decayed_confidence_score": 95.0,
+      "confidence_decay_rate": 0.05,
+      "last_validation_date": "2026-07-27T09:34:19.197080+00:00",
+      "next_validation_due": "2026-10-27T00:00:00Z",
+      "opportunity_score": 10.69,
+      "daily_frequency": 5.0,
+      "executable_daily_frequency": 4.0,
+      "regime_suitability": {
+        "Asian_Session": {
+          "profit_factor": 382.5,
+          "net_expectancy_usd": 0.063,
+          "suitability": "LOW"
+        },
+        "London_Session": {
+          "profit_factor": 517.5,
+          "net_expectancy_usd": 0.108,
+          "suitability": "HIGH"
+        },
+        "NY_Session": {
+          "profit_factor": 495.0,
+          "net_expectancy_usd": 0.1035,
+          "suitability": "HIGH"
+        },
+        "High_Volatility": {
+          "profit_factor": 562.5,
+          "net_expectancy_usd": 0.117,
+          "suitability": "OPTIMAL"
+        },
+        "Low_Volatility": {
+          "profit_factor": 315.0,
+          "net_expectancy_usd": 0.036,
+          "suitability": "UNSUITABLE"
+        }
+      }
+    }
+  ],
+  "portfolio_exposure_rules": {
+    "max_concurrent_scalps": 2,
+    "max_net_directional_exposure_lots": 1.0,
+    "max_long_exposure_lots": 1.0,
+    "max_short_exposure_lots": 1.0,
+    "net_conviction_threshold": 0.75,
+    "risk_per_trade_pct": 1.0,
+    "max_equity_drawdown_limit_pct": 5.0
+  },
+  "dynamic_blackout_rules": {
+    "high_impact_news_window_mins": 45,
+    "medium_impact_news_window_mins": 20,
+    "low_impact_news_window_mins": 0,
+    "spread_explosion_threshold_usd": 0.35,
+    "liquidity_collapse_min_ticks_per_sec": 0.5,
+    "volatility_spike_max_1m_range_usd": 3.0
+  },
+  "health_metrics_breakdown": {
+    "win_rate_score": 92.0,
+    "profit_factor_score": 95.0,
+    "execution_latency_score": 90.0,
+    "confidence_drift_score": 88.0,
+    "behavior_agreement_score": 85.0,
+    "spread_stability_score": 94.0,
+    "drawdown_score": 95.0,
+    "regime_match_score": 92.0,
+    "holdout_score": 95.0
+  },
+  "status": "SYNTHESIZED_READY_FOR_WALKFORWARD"
+}

@@ -1,0 +1,8 @@
+# XAUUSD Scalp Lab - Research Configuration
+instrument: XAUUSD
+target_style: INTRADAY_SCALPING
+timeframe: M1
+canonical_data_format: Parquet
+utc_timestamps: true
+fdr_q_value_threshold: 0.05
+min_holdout_samples: 500

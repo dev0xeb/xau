@@ -1,0 +1,14 @@
+{
+  "behavior_id": "BEH-001",
+  "name": "Post-Impulse Pullback Reversal",
+  "profit_contribution_pct": 25.6,
+  "overall_profit_factor": 400.0,
+  "pf_30d": 380.0,
+  "pf_90d": 360.0,
+  "pf_180d": 340.0,
+  "net_expectancy_usd": 0.1,
+  "win_rate_pct": 62.5,
+  "behavior_decay_status": "STABLE",
+  "lifecycle_status": "ACTIVE",
+  "recommendation": "KEEP_ACTIVE"
+}

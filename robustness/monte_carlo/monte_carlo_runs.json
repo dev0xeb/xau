@@ -1,0 +1,20 @@
+{
+  "strategy_id": "STRAT-XAU-001",
+  "n_runs": 1000,
+  "mode_1_reshuffle_mean_pf": 5.75,
+  "mode_2_bootstrap_mean_pf": 5.81,
+  "mode_3_perturbation_mean_pf": 5.75,
+  "mode_4_dropout_mean_pf": 5.11,
+  "metrics_summary": {
+    "pf_mean": 5.75,
+    "pf_ci_95_low": 4.69,
+    "pf_ci_95_high": 7.09,
+    "exp_mean_usd": 1.38,
+    "exp_ci_95_low_usd": 1.12,
+    "exp_ci_95_high_usd": 1.7,
+    "max_dd_mean_pct": 3.7,
+    "max_dd_ci_95_high_pct": 4.7,
+    "survival_rate_pct": 100.0,
+    "meets_confidence_gate": true
+  }
+}

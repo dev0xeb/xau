@@ -1,0 +1,15 @@
+{
+  "dataset_file": "data/processed/XAUUSD_M1_test.parquet",
+  "total_rows": 10,
+  "monotonicity_violations": 0,
+  "negative_or_zero_spreads": 0,
+  "extreme_spread_spikes": 0,
+  "price_outlier_spikes": 0,
+  "total_corrupt_rows": 0,
+  "quality_score": 100.0,
+  "passed_audit": true,
+  "timestamp_range": {
+    "start_utc": "2024-01-02 08:00:00+00:00",
+    "end_utc": "2024-01-02 08:09:00+00:00"
+  }
+}

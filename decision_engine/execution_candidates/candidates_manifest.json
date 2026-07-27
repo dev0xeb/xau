@@ -1,0 +1,652 @@
+[
+  {
+    "candidate_id": "CAND-0001",
+    "candidate_hash": "f3846d56112900fcded8dcd1cc30c3b8b1a4d24064040524476060df575d24b8",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0002",
+    "candidate_hash": "4c6bb3ff4e7e54d1cf92b0b6fe27c43e960d5a29123637598b998d329b945bdd",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0003",
+    "candidate_hash": "d83de84acb9d62a0d521000382bb113a227a19c4afc86e2a32327c66107b6d7d",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0004",
+    "candidate_hash": "da64e879304b80d6ef57a9c6257255319f10dc65bc6859e248bca8e38c2ca6ac",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0005",
+    "candidate_hash": "e017e26482ef514ac0bc8b03b1a51a25a2c2a3b052892ad4d253fb34363fe504",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0006",
+    "candidate_hash": "0ed4c54721fb7eb39c13c871dfc3fff214dc922cd870d7b5262614707d463fc1",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0007",
+    "candidate_hash": "dc1cb7b12be4bb8cb42add28bad5be1d3966cd7471888ccaa72533c44035dfa8",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0008",
+    "candidate_hash": "766dd4e33ba170451d56d6baa08cdef09e0f699942fba4b351d5b8b44290e916",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0009",
+    "candidate_hash": "701ccee79852b1dc8eb137e762a5356c42478d6c609aa731dabb0415d0b887ec",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0010",
+    "candidate_hash": "13ff4fd2288ebca88c120ee673511a9e6633f2352948480f830ac954c5836abf",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0011",
+    "candidate_hash": "5ecc4178aa2402e174e3f588171279965e4036fcb6e2d6442fb57610f1a86860",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0012",
+    "candidate_hash": "296a623192bd336ec1d483400350fd80ebced8dbc8b66a7c1ff6ec693f6fdc92",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  },
+  {
+    "candidate_id": "CAND-0013",
+    "candidate_hash": "43fe0a2c40ff6f5540683d1aba9ba6e30b9d3479aba4485f57e36d3e9da9bd63",
+    "strategy_id": "STRAT-XAU-001",
+    "behavior_version": "Registry v1.0",
+    "dataset_version": "XAUUSD_M1_v1.0",
+    "decision_engine_version": "1.0.0",
+    "lifecycle_state": "PENDING",
+    "decision_code": "EXECUTE",
+    "reason_code": "PASSED_ALL_RISK_GATES",
+    "opportunity_utility_score": 76.9,
+    "opportunity_quality_score": 76.9,
+    "ci_95_low_usd": 0.05,
+    "ci_95_high_usd": 0.18,
+    "ranking_tier": "READY",
+    "adaptive_risk_pct": 0.85,
+    "decision_provenance": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "explainability": {
+      "why_selected": "Opportunity utility score (76.9/100) exceeded dynamic percentile threshold.",
+      "why_rejected": "N/A - Candidate selected for execution",
+      "competing_behaviors": [
+        "Post-Impulse Pullback Reversal",
+        "Session Breakout Velocity",
+        "Compression Expansion Breakout",
+        "High Volatility Micro Momentum"
+      ],
+      "conflict_resolution": "High conviction bullish agreement across Pullback & Breakout behaviors.",
+      "risk_adjustment": "Base risk scaled by Portfolio Heat Modifier (0.85) -> 0.85% risk",
+      "expected_holding_time_sec": 420,
+      "expected_cost_usd": 0.3,
+      "expected_reward_usd": 0.42
+    },
+    "valid_for_seconds": 90,
+    "expires_in_bars": 3,
+    "created_at_utc": "2026-07-27T10:16:14.231180+00:00"
+  }
+]

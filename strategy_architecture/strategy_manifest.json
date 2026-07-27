@@ -1,0 +1,14 @@
+{
+  "strategy_id": "STRAT-XAU-001",
+  "behavior_version": "Registry v1.0",
+  "dataset_version": "XAUUSD_M1_v1.0",
+  "risk_profile": "Aggressive Intraday Scalper",
+  "target_trades_per_day": "10-15",
+  "executable_daily_trade_capacity": 13.6,
+  "expected_pf": 1.58,
+  "expected_expectancy_usd": 0.38,
+  "expected_drawdown_pct": 4.5,
+  "strategy_health_score": 91.8,
+  "generated_at_utc": "2026-07-27T09:34:19.197080+00:00",
+  "sha256_checksum": "433baeca71dd60a22169e1497ed89390c04891255cbde164c1c58b4f72010f7c"
+}

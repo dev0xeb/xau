@@ -1,0 +1,19 @@
+# Python & Pytest Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Data Files (Keep structure, exclude heavy binaries)
+data/raw/
+data/processed/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# OS Artifacts
+.DS_Store
+Thumbs.db

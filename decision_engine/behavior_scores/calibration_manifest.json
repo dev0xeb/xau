@@ -1,0 +1,34 @@
+[
+  {
+    "behavior_id": "BEH-001",
+    "raw_confidence": 1.0,
+    "calibrated_confidence": 0.95,
+    "brier_score": 0.0784,
+    "expected_calibration_error": 0.042,
+    "calibration_status": "CALIBRATED_ACCURATE"
+  },
+  {
+    "behavior_id": "BEH-002",
+    "raw_confidence": 1.0,
+    "calibrated_confidence": 0.95,
+    "brier_score": 0.0784,
+    "expected_calibration_error": 0.042,
+    "calibration_status": "CALIBRATED_ACCURATE"
+  },
+  {
+    "behavior_id": "BEH-003",
+    "raw_confidence": 1.0,
+    "calibrated_confidence": 0.95,
+    "brier_score": 0.0784,
+    "expected_calibration_error": 0.042,
+    "calibration_status": "CALIBRATED_ACCURATE"
+  },
+  {
+    "behavior_id": "BEH-004",
+    "raw_confidence": 1.0,
+    "calibrated_confidence": 0.95,
+    "brier_score": 0.0784,
+    "expected_calibration_error": 0.042,
+    "calibration_status": "CALIBRATED_ACCURATE"
+  }
+]

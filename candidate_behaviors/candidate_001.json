@@ -1,0 +1,24 @@
+{
+  "candidate_id": "candidate_001",
+  "name": "Active Session Volatility Expansion",
+  "description": "Continuation movement following active session range expansion",
+  "session_label": "London",
+  "sample_occurrences": 8,
+  "daily_frequency": 8.0,
+  "raw_profit_factor": 0.82,
+  "net_expectancy_usd": -0.0125,
+  "raw_p_value": 0.04,
+  "mined_at_utc": "2026-07-27T09:01:21.017704+00:00",
+  "status": "CANDIDATE",
+  "fdr_rank": 5,
+  "bonferroni_adjusted_p": 0.2,
+  "bh_q_value": 0.04,
+  "fdr_certified": true,
+  "yearly_profit_factors": {
+    "2024": 0.43
+  },
+  "pf_decay_rate": 0.0,
+  "cross_year_stability_score": 21.5,
+  "replication_score": 100.0,
+  "holdout_passed": false
+}

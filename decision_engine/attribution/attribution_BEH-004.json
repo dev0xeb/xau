@@ -1,0 +1,14 @@
+{
+  "behavior_id": "BEH-004",
+  "name": "High Volatility Micro Momentum",
+  "profit_contribution_pct": 23.1,
+  "overall_profit_factor": 450.0,
+  "pf_30d": 427.5,
+  "pf_90d": 405.0,
+  "pf_180d": 382.5,
+  "net_expectancy_usd": 0.09,
+  "win_rate_pct": 62.5,
+  "behavior_decay_status": "STABLE",
+  "lifecycle_status": "ACTIVE",
+  "recommendation": "KEEP_ACTIVE"
+}

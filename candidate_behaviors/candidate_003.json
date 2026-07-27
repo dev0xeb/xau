@@ -1,0 +1,24 @@
+{
+  "candidate_id": "candidate_003",
+  "name": "Session Breakout Velocity",
+  "description": "Directional velocity expansion during active trading session",
+  "session_label": "London_NY_Overlap",
+  "sample_occurrences": 4,
+  "daily_frequency": 4.0,
+  "raw_profit_factor": 400.0,
+  "net_expectancy_usd": 0.1,
+  "raw_p_value": 0.005,
+  "mined_at_utc": "2026-07-27T09:01:21.026426+00:00",
+  "status": "CANDIDATE",
+  "fdr_rank": 2,
+  "bonferroni_adjusted_p": 0.025,
+  "bh_q_value": 0.0125,
+  "fdr_certified": true,
+  "yearly_profit_factors": {
+    "2024": 0.43
+  },
+  "pf_decay_rate": 0.0,
+  "cross_year_stability_score": 21.5,
+  "replication_score": 100.0,
+  "holdout_passed": true
+}
