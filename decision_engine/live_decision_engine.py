@@ -89,12 +89,14 @@ class LiveDecisionEngine:
             cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
             exec_uuid = uuid.uuid4().hex
 
-            ask_p = current_tick.get("ask", 2350.0) if current_tick else 2350.0
-            bid_p = current_tick.get("bid", 2350.0) if current_tick else 2350.0
+            # Extract real-time tick prices dynamically (no hardcoded price fallbacks)
+            ask_p = float(current_tick["ask"]) if (current_tick and "ask" in current_tick) else float(feature_vector.get("ask", 0.0))
+            bid_p = float(current_tick["bid"]) if (current_tick and "bid" in current_tick) else float(feature_vector.get("bid", 0.0))
             entry_p = ask_p if direction == "BUY" else bid_p
 
-            sl_dist = round(max(2.0, vol_atr * 2.0), 2)
-            tp_dist = round(max(4.0, vol_atr * 4.0), 2)
+            # Certified Research Excursion Targets (STRAT-XAU-001): MAE = $2.00/oz (20 pts SL), MFE = $5.00/oz (50 pts TP)
+            sl_dist = 2.00
+            tp_dist = 5.00
 
             sl_price = round(entry_p - sl_dist, 2) if direction == "BUY" else round(entry_p + sl_dist, 2)
             tp_price = round(entry_p + tp_dist, 2) if direction == "BUY" else round(entry_p - tp_dist, 2)
