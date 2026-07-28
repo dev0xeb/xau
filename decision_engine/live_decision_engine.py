@@ -89,6 +89,16 @@ class LiveDecisionEngine:
             cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
             exec_uuid = uuid.uuid4().hex
 
+            ask_p = current_tick.get("ask", 2350.0) if current_tick else 2350.0
+            bid_p = current_tick.get("bid", 2350.0) if current_tick else 2350.0
+            entry_p = ask_p if direction == "BUY" else bid_p
+
+            sl_dist = round(max(2.0, vol_atr * 2.0), 2)
+            tp_dist = round(max(4.0, vol_atr * 4.0), 2)
+
+            sl_price = round(entry_p - sl_dist, 2) if direction == "BUY" else round(entry_p + sl_dist, 2)
+            tp_price = round(entry_p + tp_dist, 2) if direction == "BUY" else round(entry_p - tp_dist, 2)
+
             candidate_payload = {
                 "decision": "EXECUTE",
                 "candidate_id": cand_id,
@@ -101,6 +111,9 @@ class LiveDecisionEngine:
                 "risk_tier": "TIER_1",
                 "spread_usd": spread,
                 "volatility_atr": vol_atr,
+                "entry_target": entry_p,
+                "sl": sl_price,
+                "tp": tp_price,
                 "created_at_utc": datetime.now(timezone.utc).isoformat()
             }
 

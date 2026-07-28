@@ -196,16 +196,24 @@ class MT5Adapter(BrokerAdapter):
                 "fill_price": 0.0
             }
 
-        price = tick_info.ask if direction == "BUY" else tick_info.bid
+        price = float(tick_info.ask if direction == "BUY" else tick_info.bid)
+        sl_val = float(order_payload.get("sl", 0.0))
+        tp_val = float(order_payload.get("tp", 0.0))
+
+        # Enforce failsafe non-zero SL/TP if missing
+        if sl_val == 0.0:
+            sl_val = round(price - 3.0, 2) if direction == "BUY" else round(price + 3.0, 2)
+        if tp_val == 0.0:
+            tp_val = round(price + 6.0, 2) if direction == "BUY" else round(price - 6.0, 2)
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.symbol,
             "volume": float(volume),
             "type": mt5.ORDER_TYPE_BUY if direction == "BUY" else mt5.ORDER_TYPE_SELL,
-            "price": float(price),
-            "sl": float(order_payload.get("sl", 0.0)),
-            "tp": float(order_payload.get("tp", 0.0)),
+            "price": price,
+            "sl": sl_val,
+            "tp": tp_val,
             "deviation": 20,
             "magic": 1001,
             "comment": order_payload.get("candidate_id", "XAU_SCALP"),
