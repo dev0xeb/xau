@@ -233,15 +233,18 @@ class MT5Adapter(BrokerAdapter):
             "fill_price": result.price
         }
 
-    def modify_order(self, ticket: int, new_sl: float, new_tp: float) -> bool:
+    def modify_order(self, ticket: int, sl: float = 0.0, tp: float = 0.0, **kwargs) -> bool:
         if not HAS_MT5 or not self.connected:
             return False
+
+        sl_val = float(sl if sl != 0.0 else kwargs.get("new_sl", 0.0))
+        tp_val = float(tp if tp != 0.0 else kwargs.get("new_tp", 0.0))
 
         request = {
             "action": mt5.TRADE_ACTION_SLTP,
             "position": ticket,
-            "sl": float(new_sl),
-            "tp": float(new_tp)
+            "sl": sl_val,
+            "tp": tp_val
         }
         res = mt5.order_send(request)
         return res is not None and res.retcode == mt5.TRADE_RETCODE_DONE
