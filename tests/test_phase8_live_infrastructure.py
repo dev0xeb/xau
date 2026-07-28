@@ -140,7 +140,7 @@ def test_decision_replay_load_and_replay(tmp_path):
 
 
 def test_trade_manager_trailing_stop():
-    tm = TradeManager(trailing_stop_dist_usd=1.0, break_even_trigger_usd=0.5)
+    tm = TradeManager(trailing_stop_dist_usd=1.0, break_even_trigger_usd=0.5, enable_trailing_stop=True)
 
     oms_record = {
         "broker_ticket": 5001,

@@ -12,9 +12,15 @@ Manages open positions:
 class TradeManager:
     """Active trade lifecycle manager for open positions."""
 
-    def __init__(self, trailing_stop_dist_usd: float = 1.50, break_even_trigger_usd: float = 1.00):
+    def __init__(
+        self,
+        trailing_stop_dist_usd: float = 1.50,
+        break_even_trigger_usd: float = 1.00,
+        enable_trailing_stop: bool = False
+    ):
         self.trailing_stop_dist_usd = trailing_stop_dist_usd
         self.break_even_trigger_usd = break_even_trigger_usd
+        self.enable_trailing_stop = enable_trailing_stop
         self.tracked_positions = {}  # ticket -> position dict
 
     def register_position(self, oms_record: dict) -> dict:
@@ -42,8 +48,11 @@ class TradeManager:
     def update_positions_with_market_tick(self, current_tick: dict, broker_adapter) -> list:
         """
         Evaluates open positions against current market price.
-        Applies Break-Even and Trailing Stop modifications via broker_adapter.
+        Applies Break-Even and Trailing Stop modifications via broker_adapter if enabled.
         """
+        if not self.enable_trailing_stop:
+            return []
+
         bid = current_tick["bid"]
         ask = current_tick["ask"]
         updates = []
