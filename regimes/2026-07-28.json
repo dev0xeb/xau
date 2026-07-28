@@ -1,0 +1,9 @@
+[
+  {
+    "timestamp_utc": "2026-07-28T06:15:42.890447+00:00",
+    "time_key": "06:15:42",
+    "regime": "HIGH_VOLATILITY",
+    "prev_regime": "NORMAL",
+    "metrics": {}
+  }
+]

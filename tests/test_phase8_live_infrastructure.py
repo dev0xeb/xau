@@ -74,7 +74,7 @@ def test_market_data_adapter_and_m1_aggregation():
     mda = MarketDataAdapter(symbol="XAUUSD")
     mda.connect()
     tick = mda.get_latest_tick()
-    assert tick["symbol"] == "XAUUSD"
+    assert "XAUUSD" in tick["symbol"] or "GOLD" in tick["symbol"]
     assert tick["bid"] > 0
     assert tick["ask"] >= tick["bid"]
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-mt5_adapter.py - MetaTrader 5 Broker Adapter with Broker Capability Discovery
+mt5_adapter.py - MetaTrader 5 Broker Adapter with Automatic Symbol Resolver
 
 Implements BrokerAdapter interface using MetaTrader5 Python API for XAUUSD order routing,
 position queries, and automatic Broker Capability Discovery.
+Supports automatic symbol resolution for broker variations (e.g. XAUUSDz, XAUUSDm, GOLD, GOLD.m).
 """
 
 import sys
@@ -17,10 +18,56 @@ try:
 except ImportError:
     HAS_MT5 = False
 
+
+def resolve_broker_symbol(default_symbol: str = "XAUUSD") -> str:
+    """
+    Auto-discovers and resolves the exact Gold trading symbol on the connected MT5 broker.
+    Supports suffix variations: XAUUSDz, XAUUSDm, XAUUSD.a, XAUUSD_i, GOLD, GOLD.m, etc.
+    """
+    import configs.env_loader  # Auto-load .env
+    env_symbol = os.environ.get("SYMBOL", os.environ.get("MT5_SYMBOL", "")).strip()
+
+    if env_symbol:
+        return env_symbol
+
+    if not HAS_MT5 or not mt5.initialize():
+        return default_symbol
+
+    # Check default symbol directly first
+    info = mt5.symbol_info(default_symbol)
+    if info is not None:
+        mt5.symbol_select(default_symbol, True)
+        return default_symbol
+
+    # Query all available symbols from broker
+    all_symbols = mt5.symbols_get()
+    if all_symbols:
+        symbol_names = [s.name for s in all_symbols]
+
+        # 1. Search for XAUUSD prefix variations (XAUUSDz, XAUUSDm, etc.)
+        xau_matches = [s for s in symbol_names if s.upper().startswith("XAUUSD")]
+        if xau_matches:
+            matched = xau_matches[0]
+            mt5.symbol_select(matched, True)
+            print(f"[SYMBOL RESOLVER] Auto-discovered broker Gold symbol: '{matched}'")
+            return matched
+
+        # 2. Search for GOLD prefix variations (GOLD, GOLD.m, etc.)
+        gold_matches = [s for s in symbol_names if s.upper().startswith("GOLD")]
+        if gold_matches:
+            matched = gold_matches[0]
+            mt5.symbol_select(matched, True)
+            print(f"[SYMBOL RESOLVER] Auto-discovered broker Gold symbol: '{matched}'")
+            return matched
+
+    return default_symbol
+
+
 class MT5Adapter(BrokerAdapter):
 
-    def __init__(self, symbol: str = "XAUUSD", config_dir: str = "configs"):
-        self.symbol = symbol
+    def __init__(self, symbol: str = None, config_dir: str = "configs"):
+        self.requested_symbol = symbol or "XAUUSD"
+        self.symbol = self.requested_symbol
         self.config_dir = config_dir
         os.makedirs(self.config_dir, exist_ok=True)
         self.connected = False
@@ -55,14 +102,16 @@ class MT5Adapter(BrokerAdapter):
             self.connected = False
             return False
 
-        # Validate symbol
+        # Auto-resolve broker Gold symbol (XAUUSD, XAUUSDz, XAUUSDm, GOLD, etc.)
+        self.symbol = resolve_broker_symbol(self.requested_symbol)
+
         symbol_info = mt5.symbol_info(self.symbol)
         if symbol_info is None or not symbol_info.visible:
             mt5.symbol_select(self.symbol, True)
 
         self.connected = True
         self.discover_broker_capabilities()
-        print(f"[SUCCESS] Connected to MetaTrader 5 Terminal for {self.symbol}")
+        print(f"[SUCCESS] Connected to MetaTrader 5 Terminal for '{self.symbol}'")
         return True
 
     def discover_broker_capabilities(self) -> dict:
@@ -85,8 +134,8 @@ class MT5Adapter(BrokerAdapter):
                 "volume_step": info.volume_step if info else 0.01,
                 "stops_level": info.trade_stops_level if info else 10,
                 "freeze_level": info.trade_freeze_level if info else 0,
-                "execution_mode": info.execution_mode if info else 1,
-                "filling_mode": info.filling_mode if info else 1,
+                "execution_mode": getattr(info, "execution_mode", getattr(info, "trade_exemode", 1)) if info else 1,
+                "filling_mode": getattr(info, "filling_mode", getattr(info, "type_filling", 1)) if info else 1,
                 "leverage": acc.leverage if acc else 100,
                 "currency": acc.currency if acc else "USD"
             }
@@ -100,7 +149,7 @@ class MT5Adapter(BrokerAdapter):
                 "tick_value": 1.0,
                 "contract_size": 100.0,
                 "min_lot": 0.01,
-                "max_lot": 10.0,
+                "max_lot": 100.0,
                 "volume_step": 0.01,
                 "stops_level": 10,
                 "freeze_level": 0,
@@ -142,7 +191,7 @@ class MT5Adapter(BrokerAdapter):
             return {
                 "success": False,
                 "retcode": 10001,
-                "comment": "MT5 Tick Info Unavailable",
+                "comment": f"MT5 Tick Info Unavailable for {self.symbol}",
                 "ticket": 0,
                 "fill_price": 0.0
             }
@@ -184,37 +233,56 @@ class MT5Adapter(BrokerAdapter):
             "fill_price": result.price
         }
 
-    def modify_order(self, ticket: int, sl: float, tp: float) -> dict:
-        if HAS_MT5 and self.connected:
-            request = {
-                "action": mt5.TRADE_ACTION_SLTP,
-                "symbol": self.symbol,
-                "position": ticket,
-                "sl": float(sl),
-                "tp": float(tp)
-            }
-            result = mt5.order_send(request)
-            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                return {"success": True, "ticket": ticket, "sl": sl, "tp": tp}
-        return {"success": True, "ticket": ticket, "sl": sl, "tp": tp}
+    def modify_order(self, ticket: int, new_sl: float, new_tp: float) -> bool:
+        if not HAS_MT5 or not self.connected:
+            return False
 
-    def cancel_order(self, ticket: int) -> dict:
-        return {"success": True, "ticket": ticket, "comment": "CANCELLED"}
+        request = {
+            "action": mt5.TRADE_ACTION_SLTP,
+            "position": ticket,
+            "sl": float(new_sl),
+            "tp": float(new_tp)
+        }
+        res = mt5.order_send(request)
+        return res is not None and res.retcode == mt5.TRADE_RETCODE_DONE
+
+    def cancel_order(self, ticket: int) -> bool:
+        if not HAS_MT5 or not self.connected:
+            return False
+
+        request = {
+            "action": mt5.TRADE_ACTION_REMOVE,
+            "order": ticket
+        }
+        res = mt5.order_send(request)
+        return res is not None and res.retcode == mt5.TRADE_RETCODE_DONE
 
     def get_positions(self) -> list:
-        if not self.connected or not HAS_MT5:
+        if not HAS_MT5 or not self.connected:
             return []
         pos = mt5.positions_get(symbol=self.symbol)
-        return [p._asdict() for p in pos] if pos else []
+        if pos is None:
+            return []
+        return [p._asdict() for p in pos]
 
     def get_orders(self) -> list:
-        if not self.connected or not HAS_MT5:
+        if not HAS_MT5 or not self.connected:
             return []
         orders = mt5.orders_get(symbol=self.symbol)
-        return [o._asdict() for o in orders] if orders else []
+        if orders is None:
+            return []
+        return [o._asdict() for o in orders]
 
     def get_account_info(self) -> dict:
-        if not self.connected or not HAS_MT5:
-            return {"balance": 100000.0, "equity": 100000.0, "margin_free": 100000.0}
+        if not HAS_MT5:
+            return {"balance": 10000.0, "equity": 10000.0, "margin": 0.0, "free_margin": 10000.0}
         acc = mt5.account_info()
-        return acc._asdict() if acc else {}
+        if acc is None:
+            return {"balance": 10000.0, "equity": 10000.0, "margin": 0.0, "free_margin": 10000.0}
+        return {
+            "balance": acc.balance,
+            "equity": acc.equity,
+            "margin": acc.margin,
+            "free_margin": acc.margin_free,
+            "leverage": acc.leverage
+        }
