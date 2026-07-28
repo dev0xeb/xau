@@ -107,6 +107,8 @@ class OrderManagementSystem:
             "oms_state": "QUEUED",
             "direction": candidate_payload.get("direction", "BUY"),
             "volume_lots": candidate_payload.get("volume_lots", candidate_payload.get("adaptive_risk_pct", 1.0) * 0.1),
+            "sl": candidate_payload.get("sl", 0.0),
+            "tp": candidate_payload.get("tp", 0.0),
             "created_at_utc": datetime.now(timezone.utc).isoformat()
         }
 
