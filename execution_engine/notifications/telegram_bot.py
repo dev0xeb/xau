@@ -367,24 +367,49 @@ class TelegramControlBot:
                 f"Reconciliation Audit: `100% MATCHED`"
             )
 
-        if cmd == "/positions":
-            open_count = ctx.get("open_positions", 0)
-            return (
-                "📌 *Active Position Lifecycle Audit*\n\n"
-                f"Open Positions: `{open_count} Active Deals`\n"
-                "Total Exposure: `0.00 / 5.00 Lots`\n"
-                "Trailing Stop Arm Status: `ARMED`\n"
-                "Break-Even Protection: `ACTIVE`"
-            )
+        if cmd in ["/positions", "/open"]:
+            from execution_engine.adapters.mt5_adapter import MT5Adapter
+            mt5_adapter = MT5Adapter()
+            mt5_adapter.connect()
+            positions = mt5_adapter.get_positions()
 
-        if cmd == "/open":
-            open_count = ctx.get("open_positions", 0)
-            return (
-                "📂 *Open Market Deals & Pending Orders*\n\n"
-                f"Active Market Deals: `{open_count}`\n"
-                "Pending Limit/Stop Orders: `0`\n"
-                "OMS Queue Depth: `0 Candidates Pending`"
-            )
+            if not positions:
+                return (
+                    "📌 *Active Positions & Open Market Deals*\n\n"
+                    "No open positions on MetaTrader 5 terminal currently.\n"
+                    "Total Exposure: `0.00 / 5.00 Lots`\n"
+                    "Engine Status: `Listening for High-Conviction Ticks`"
+                )
+
+            total_lots = sum(p.get("volume", 0.0) for p in positions)
+            total_floating_pnl = sum(p.get("profit", 0.0) for p in positions)
+            pnl_sign = "+" if total_floating_pnl >= 0 else ""
+
+            lines = ["📌 *Active Positions & Open Market Deals*\n"]
+            lines.append(f"Total Open Deals: `{len(positions)}` | Exposure: `{total_lots:.2f} Lots`")
+            lines.append(f"Total Floating PnL: `{pnl_sign}${total_floating_pnl:.2f}`\n")
+
+            for p in positions:
+                ticket = p.get("ticket", 0)
+                pos_type = "🟢 BUY" if p.get("type", 0) == 0 else "🔴 SELL"
+                sym = p.get("symbol", "XAUUSDz")
+                vol = p.get("volume", 0.01)
+                open_p = p.get("price_open", 0.0)
+                curr_p = p.get("price_current", open_p)
+                sl = p.get("sl", 0.0)
+                tp = p.get("tp", 0.0)
+                pnl = p.get("profit", 0.0)
+                pnl_str = f"+${pnl:.2f}" if pnl >= 0 else f"-${abs(pnl):.2f}"
+
+                lines.append(
+                    f"• Ticket `#{ticket}` (`{sym}`):\n"
+                    f"  Direction: `{pos_type} {vol} lots`\n"
+                    f"  Open: `${open_p:.2f}` -> Current: `${curr_p:.2f}`\n"
+                    f"  SL: `${sl:.2f}` | TP: `${tp:.2f}`\n"
+                    f"  Floating PnL: `{pnl_str}`"
+                )
+
+            return "\n".join(lines)
 
         if cmd == "/risk":
             tj_db = TradeJournalDatabase()

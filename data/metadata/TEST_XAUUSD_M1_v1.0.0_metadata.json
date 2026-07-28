@@ -4,9 +4,9 @@
   "instrument": "XAUUSD",
   "granularity": "M1",
   "source": "REAL_HISTORICAL_DATA",
-  "created_at_utc": "2026-07-28T06:17:43.255095+00:00",
+  "created_at_utc": "2026-07-28T06:24:43.803356+00:00",
   "sha256_checksum": "39b7331c270670cdaa8569b9fd03667fab7b444a2527c30acdd30fe79b1726a6",
-  "file_path": "C:\\Users\\HP\\AppData\\Local\\Temp\\pytest-of-HP\\pytest-48\\test_generate_catalog0\\test_clean_m1.parquet",
+  "file_path": "C:\\Users\\HP\\AppData\\Local\\Temp\\pytest-of-HP\\pytest-49\\test_generate_catalog0\\test_clean_m1.parquet",
   "row_count": 10,
   "date_range": {
     "start_utc": "2024-01-02 08:00:00+00:00",
