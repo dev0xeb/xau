@@ -160,6 +160,28 @@ class OrderManagementSystem:
 
             # Journal execution
             self.journal.record_trade(candidate_payload, oms_record)
+
+            # Record in TradeJournalDatabase for 100% isolated local trade tracking
+            try:
+                from execution_engine.audit.trade_journal_db import TradeJournalDatabase
+                tj_db = TradeJournalDatabase()
+                trade_record = {
+                    "trade_id": f"TR-{cand_id}",
+                    "candidate_id": cand_id,
+                    "symbol": oms_record.get("symbol", "XAUUSDz"),
+                    "direction": oms_record.get("direction", "BUY"),
+                    "volume_lots": oms_record.get("volume_lots", 0.1),
+                    "entry_price": oms_record.get("broker_fill_price", 2350.50),
+                    "sl": candidate_payload.get("sl", 0.0),
+                    "tp": candidate_payload.get("tp", 0.0),
+                    "decision_score": candidate_payload.get("decision_score", 0.85),
+                    "spread_usd": candidate_payload.get("spread_usd", 0.04),
+                    "atr": candidate_payload.get("volatility_atr", 1.2),
+                    "timestamp_utc": oms_record.get("created_at_utc")
+                }
+                tj_db.record_journal_trade(trade_record)
+            except Exception as tj_err:
+                print(f"[OMS JOURNAL ERROR] {tj_err}")
         else:
             oms_record["order_version"] += 1
             oms_record["oms_state"] = "REJECTED_BROKER"

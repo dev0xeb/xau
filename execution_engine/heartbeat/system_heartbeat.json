@@ -1,6 +1,6 @@
 {
-  "timestamp_utc": "2026-07-28T10:28:05.134963+00:00",
-  "heartbeat_generation": 1433,
+  "timestamp_utc": "2026-07-28T12:45:23.283979+00:00",
+  "heartbeat_generation": 3203,
   "subsystems": {
     "broker_heartbeat": true,
     "market_data_heartbeat": true,
