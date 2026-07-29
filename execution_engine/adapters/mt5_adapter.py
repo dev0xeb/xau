@@ -251,10 +251,21 @@ class MT5Adapter(BrokerAdapter):
         request = {
             "action": mt5.TRADE_ACTION_SLTP,
             "position": ticket,
+            "symbol": self.symbol,
             "sl": sl_val,
             "tp": tp_val
         }
         res = mt5.order_send(request)
+        if res is None or res.retcode != mt5.TRADE_RETCODE_DONE:
+            # Fallback retry without explicit symbol field if broker demands position-only
+            alt_req = {
+                "action": mt5.TRADE_ACTION_SLTP,
+                "position": ticket,
+                "sl": sl_val,
+                "tp": tp_val
+            }
+            res = mt5.order_send(alt_req)
+
         return res is not None and res.retcode == mt5.TRADE_RETCODE_DONE
 
     def cancel_order(self, ticket: int) -> bool:
