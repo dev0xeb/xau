@@ -163,7 +163,7 @@ def test_trade_manager_trailing_stop():
 
     updates1 = tm.update_positions_with_market_tick(tick1, DummyAdapter())
     assert len(updates1) == 1
-    assert updates1[0]["action"] == "MOVED_TO_BREAK_EVEN"
+    assert updates1[0]["action"] == "PROFIT_LOCKED_20USD"
     assert pos["is_break_even"] is True
 
 

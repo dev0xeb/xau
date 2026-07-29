@@ -68,13 +68,13 @@ class TradeManager:
                 current_price = bid
                 pnl_dist = current_price - open_price
 
-                # 1. Break-Even Check (+ $2.00/oz -> + $20 profit trigger)
+                # 1. Lock $20 Profit Trigger (+ $2.00/oz -> Move SL to entry + $2.00)
                 if pnl_dist >= self.break_even_trigger_usd and not pos["is_break_even"]:
-                    new_sl = round(open_price + 0.10, 2)
+                    new_sl = round(open_price + self.break_even_trigger_usd, 2)
                     broker_adapter.modify_order(ticket, sl=new_sl, tp=pos["tp_price"])
                     pos["sl_price"] = new_sl
                     pos["is_break_even"] = True
-                    updates.append({"ticket": ticket, "action": "MOVED_TO_BREAK_EVEN", "new_sl": new_sl})
+                    updates.append({"ticket": ticket, "action": "PROFIT_LOCKED_20USD", "new_sl": new_sl})
 
                 # 2. Trailing Stop Check
                 elif pos["is_break_even"] and current_price - pos["sl_price"] > self.trailing_stop_dist_usd:
@@ -88,13 +88,13 @@ class TradeManager:
                 current_price = ask
                 pnl_dist = open_price - current_price
 
-                # 1. Break-Even Check (+ $2.00/oz -> + $20 profit trigger)
+                # 1. Lock $20 Profit Trigger (+ $2.00/oz -> Move SL to entry - $2.00)
                 if pnl_dist >= self.break_even_trigger_usd and not pos["is_break_even"]:
-                    new_sl = round(open_price - 0.10, 2)
+                    new_sl = round(open_price - self.break_even_trigger_usd, 2)
                     broker_adapter.modify_order(ticket, sl=new_sl, tp=pos["tp_price"])
                     pos["sl_price"] = new_sl
                     pos["is_break_even"] = True
-                    updates.append({"ticket": ticket, "action": "MOVED_TO_BREAK_EVEN", "new_sl": new_sl})
+                    updates.append({"ticket": ticket, "action": "PROFIT_LOCKED_20USD", "new_sl": new_sl})
 
                 # 2. Trailing Stop Check
                 elif pos["is_break_even"] and pos["sl_price"] - current_price > self.trailing_stop_dist_usd:

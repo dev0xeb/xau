@@ -1,0 +1,16 @@
+{
+  "candidate_id": "CAND-LIVE-9e6c2bf1",
+  "execution_uuid": "16daa2d07e6f42409c6497a02b411d04",
+  "order_uuid": "4c9b5286-5923-4f09-b160-a9295a0bee1c",
+  "oms_uuid": "64cf6167-81a8-4c64-ae1e-49bae9741882",
+  "order_version": 3,
+  "oms_state": "FILLED",
+  "direction": "SELL",
+  "volume_lots": 0.1,
+  "sl": 4044.24,
+  "tp": 4036.24,
+  "created_at_utc": "2026-07-29T17:15:21.578902+00:00",
+  "execution_latency_ms": 763.8,
+  "broker_ticket": 446293055,
+  "broker_fill_price": 4041.158
+}
