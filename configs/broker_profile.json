@@ -1,7 +1,7 @@
 {
   "symbol": "XAUUSDz",
   "digits": 3,
-  "spread_usd": 0.09,
+  "spread_usd": 0.05,
   "point_size": 0.001,
   "tick_size": 0.001,
   "tick_value": 0.1,
