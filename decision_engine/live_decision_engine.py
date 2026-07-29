@@ -98,8 +98,8 @@ class LiveDecisionEngine:
             bid_p = float(current_tick["bid"]) if (current_tick and "bid" in current_tick) else float(feature_vector.get("bid", 0.0))
             entry_p = ask_p if direction == "BUY" else bid_p
 
-            # Certified Excursion Targets: Expanded SL = $3.00/oz (30 pts SL), MFE = $5.00/oz (50 pts TP) -> 2.5:1.5 R:R
-            sl_dist = 3.00
+            # Certified Excursion Targets: SL = $2.00/oz (20 pts SL), MFE = $5.00/oz (50 pts TP) -> 2.5:1 R:R
+            sl_dist = 2.00
             tp_dist = 5.00
 
             sl_price = round(entry_p - sl_dist, 2) if direction == "BUY" else round(entry_p + sl_dist, 2)
