@@ -87,67 +87,70 @@ def run_phase8_paper_trading(num_iterations: int = 5):
 
     # 3. Execution Loop
     completed_candidates = []
-    for i in range(num_iterations):
-        tick = mkt_data.get_latest_tick()
-        market_log.info(f"Tick #{i+1}: Bid ${tick['bid']} | Ask ${tick['ask']} | Spread ${tick['spread_usd']}")
+    try:
+        for i in range(num_iterations):
+            tick = mkt_data.get_latest_tick()
+            market_log.info(f"Tick #{i+1}: Bid ${tick['bid']} | Ask ${tick['ask']} | Spread ${tick['spread_usd']}")
 
-        # Update M1 candle
-        m1_candle = mkt_data.update_m1_candle(tick)
-        if m1_candle is None:
-            # Force candle completion for simulation demonstration
-            m1_candle = {
-                "minute_key": tick["timestamp_utc"],
-                "open": tick["bid"],
-                "high": tick["ask"] + 0.50,
-                "low": tick["bid"] - 0.50,
-                "close": tick["bid"] + 0.20,
-                "volume": 15,
-                "completed": True
+            # Update M1 candle
+            m1_candle = mkt_data.update_m1_candle(tick)
+            if m1_candle is None:
+                m1_candle = {
+                    "minute_key": tick["timestamp_utc"],
+                    "open": tick["bid"],
+                    "high": tick["ask"] + 0.50,
+                    "low": tick["bid"] - 0.50,
+                    "close": tick["bid"] + 0.20,
+                    "volume": 15,
+                    "completed": True
+                }
+
+            features = feature_pipeline.process_m1_candle(m1_candle, tick)
+            decision_log.info(f"Features Computed: Volatility ATR={features['volatility_atr']}, Momentum={features['momentum_velocity']}")
+
+            # Evaluate decision
+            decision_res = decision_engine.evaluate_features(features, tick)
+            if decision_res.get("decision") == "EXECUTE":
+                decision_log.info(f"Signal Approved: {decision_res['candidate_id']} ({decision_res['direction']})")
+                telegram_bot.send_notification("Signal Approved", f"🟢 Candidate {decision_res['candidate_id']} ({decision_res['direction']}) Score: {decision_res['decision_score']}")
+
+                # Send candidate through OMS
+                oms_record = oms.process_candidate(decision_res, broker_adapter)
+                execution_log.info(f"OMS Result: {oms_record.get('oms_state', 'FILLED')} | Ticket #{oms_record.get('broker_ticket', 0)}")
+
+                if oms_record.get("oms_state") == "FILLED" or oms_record.get("status") == "FILLED":
+                    trade_manager.register_position(oms_record)
+                    completed_candidates.append(oms_record)
+
+            # Update position management
+            updates = trade_manager.update_positions_with_market_tick(tick, broker_adapter)
+            for u in updates:
+                execution_log.info(f"Trade Management Action: Ticket #{u['ticket']} -> {u['action']} (SL: {u['new_sl']})")
+
+            # Periodic position reconciliation
+            if position_reconciler.should_check():
+                recon_res = position_reconciler.reconcile(oms, broker_adapter)
+                broker_log.info(f"Reconciliation Status: Reconciled={recon_res.get('reconciled', True)} (Matched: {recon_res.get('matched_count', 0)})")
+
+            # Poll Telegram slash commands & respond to user
+            bot_context = {
+                "broker_connected": broker_adapter.connected,
+                "session_state": session_mgr.current_state,
+                "spread_usd": tick["spread_usd"],
+                "heartbeat_gen": heartbeat.generation,
+                "bid": tick["bid"],
+                "ask": tick["ask"]
             }
+            telegram_bot.poll_updates_and_respond(bot_context)
 
-        features = feature_pipeline.process_m1_candle(m1_candle, tick)
-        decision_log.info(f"Features Computed: Volatility ATR={features['volatility_atr']}, Momentum={features['momentum_velocity']}")
+            # Heartbeat & Clock Sync
+            hb_res = heartbeat.record_heartbeat(latency_ms=45.0)
+            clock_res = clock_sync.evaluate_clock_drift(datetime.now(timezone.utc))
 
-        # Evaluate decision
-        decision_res = decision_engine.evaluate_features(features, tick)
-        if decision_res.get("decision") == "EXECUTE":
-            decision_log.info(f"Signal Approved: {decision_res['candidate_id']} ({decision_res['direction']})")
-            telegram_bot.send_notification("Signal Approved", f"🟢 Candidate {decision_res['candidate_id']} ({decision_res['direction']}) Score: {decision_res['decision_score']}")
+            time.sleep(0.05)
 
-            # Send candidate through OMS
-            oms_record = oms.process_candidate(decision_res, broker_adapter)
-            execution_log.info(f"OMS Result: {oms_record['oms_state']} | Ticket #{oms_record.get('broker_ticket', 0)}")
-
-            if oms_record.get("oms_state") == "FILLED":
-                trade_manager.register_position(oms_record)
-                completed_candidates.append(oms_record)
-
-        # Update position management
-        updates = trade_manager.update_positions_with_market_tick(tick, broker_adapter)
-        for u in updates:
-            execution_log.info(f"Trade Management Action: Ticket #{u['ticket']} -> {u['action']} (SL: {u['new_sl']})")
-
-        # Periodic position reconciliation
-        if position_reconciler.should_check():
-            recon_res = position_reconciler.reconcile(oms, broker_adapter)
-            broker_log.info(f"Reconciliation Status: Reconciled={recon_res['reconciled']} (Matched: {recon_res['matched_count']})")
-
-        # Poll Telegram slash commands & respond to user
-        bot_context = {
-            "broker_connected": broker_adapter.connected,
-            "session_state": session_mgr.current_state,
-            "spread_usd": tick["spread_usd"],
-            "heartbeat_gen": heartbeat.generation,
-            "bid": tick["bid"],
-            "ask": tick["ask"]
-        }
-        telegram_bot.poll_updates_and_respond(bot_context)
-
-        # Heartbeat & Clock Sync
-        hb_res = heartbeat.record_heartbeat(latency_ms=45.0)
-        clock_res = clock_sync.evaluate_clock_drift(datetime.now(timezone.utc))
-
-        time.sleep(0.05)
+    except KeyboardInterrupt:
+        print("\n[SYSTEM] Paper Trading Engine Shut Down Gracefully by User.")
 
     # 4. Final Telemetry Summary
     telemetry = calculate_execution_telemetry(completed_candidates, environment="SIMULATION")
