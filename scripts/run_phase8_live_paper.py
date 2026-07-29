@@ -37,6 +37,7 @@ from execution_engine.monitoring.clock_sync import ClockSyncMonitor
 from execution_engine.heartbeat.heartbeat import HeartbeatMonitor
 from execution_engine.notifications.telegram_bot import TelegramControlBot
 from execution_engine.metrics.telemetry import calculate_execution_telemetry
+from execution_engine.filters.news_filter import EconomicNewsFilter
 
 
 def run_phase8_paper_trading(num_iterations: int = 5):
@@ -65,11 +66,13 @@ def run_phase8_paper_trading(num_iterations: int = 5):
 
     feature_pipeline = RealtimeFeaturePipeline()
     replay_engine = DecisionReplayEngine()
+    news_filter = EconomicNewsFilter()
 
     decision_engine = LiveDecisionEngine(
         session_manager=session_mgr,
         market_quality_filter=mq_filter,
-        replay_engine=replay_engine
+        replay_engine=replay_engine,
+        news_filter=news_filter
     )
 
     oms = OrderManagementSystem()

@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from decision_engine.decision_replay import DecisionReplayEngine
 from execution_engine.monitoring.trading_session_manager import TradingSessionManager
 from execution_engine.monitoring.market_quality_filter import MarketQualityFilter
+from execution_engine.filters.news_filter import EconomicNewsFilter
 
 class LiveDecisionEngine:
     """Real-Time Decision Intelligence & Shadow Mode Engine."""
@@ -27,11 +28,13 @@ class LiveDecisionEngine:
         session_manager: TradingSessionManager = None,
         market_quality_filter: MarketQualityFilter = None,
         replay_engine: DecisionReplayEngine = None,
+        news_filter: EconomicNewsFilter = None,
         cooldown_seconds: float = 0.0
     ):
         self.session_manager = session_manager or TradingSessionManager()
         self.market_quality_filter = market_quality_filter or MarketQualityFilter()
         self.replay_engine = replay_engine or DecisionReplayEngine()
+        self.news_filter = news_filter or EconomicNewsFilter()
         self.cooldown_seconds = cooldown_seconds
         self.last_execution_timestamp = 0.0
         self.shadow_candidates = []
@@ -71,6 +74,18 @@ class LiveDecisionEngine:
                 market_snapshot=quality_eval
             )
             return {"decision": "NO_TRADE", "reason": f"Market Quality Grade: {quality_eval['grade']}"}
+
+        # 2.5 Economic Calendar News Guardrail Check
+        news_blocked, news_reason = self.news_filter.is_news_blocked()
+        if news_blocked:
+            self.replay_engine.record_snapshot(
+                features=feature_vector,
+                behavior_scores={},
+                portfolio_votes={},
+                decision="NO_TRADE",
+                market_snapshot={"reason": news_reason}
+            )
+            return {"decision": "NO_TRADE", "reason": news_reason}
 
         # 3. Behavior Scoring Logic (STRAT-XAU-001 Ensemble)
         vol_atr = feature_vector.get("volatility_atr", 1.5)
