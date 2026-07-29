@@ -61,15 +61,15 @@ class TradeManager:
                 magic = lp.get("magic", 0)
                 if ticket and ticket not in self.tracked_positions and magic == 1001:
                     direction = "BUY" if lp.get("type") == 0 else "SELL"
-                    open_price = lp.get("price_open", 2350.50)
-                    sl_price = lp.get("sl", 0.0)
-                    
-                    tp_price = lp.get("tp", 0.0)
+                    open_price = float(lp.get("price_open", 0.0))
+                    sl_price = float(lp.get("sl", 0.0))
+                    tp_price = float(lp.get("tp", 0.0))
 
                     is_be = False
-                    if direction == "BUY" and sl_price >= open_price + 1.50:
+                    trigger_offset = max(1.0, self.break_even_trigger_usd - 0.50)
+                    if direction == "BUY" and sl_price >= (open_price + trigger_offset):
                         is_be = True
-                    elif direction == "SELL" and sl_price <= open_price - 1.50 and sl_price > 0.0:
+                    elif direction == "SELL" and sl_price <= (open_price - trigger_offset) and sl_price > 0.0:
                         is_be = True
 
                     self.tracked_positions[ticket] = {
