@@ -206,6 +206,18 @@ class MT5Adapter(BrokerAdapter):
         if tp_val == 0.0:
             tp_val = round(price + 6.0, 2) if direction == "BUY" else round(price - 6.0, 2)
 
+        # Dynamically determine broker filling mode
+        s_info = mt5.symbol_info(self.symbol)
+        filling_mode = mt5.ORDER_FILLING_IOC
+        if s_info:
+            flags = s_info.filling_mode
+            if flags & 1:  # FOK
+                filling_mode = mt5.ORDER_FILLING_FOK
+            elif flags & 2:  # IOC
+                filling_mode = mt5.ORDER_FILLING_IOC
+            else:
+                filling_mode = mt5.ORDER_FILLING_RETURN
+
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.symbol,
@@ -218,10 +230,21 @@ class MT5Adapter(BrokerAdapter):
             "magic": 1001,
             "comment": order_payload.get("candidate_id", "XAU_SCALP"),
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": filling_mode,
         }
 
         result = mt5.order_send(request)
+
+        # Retries with fallback filling modes if INVALID_FILL (retcode 10030)
+        if result is not None and result.retcode == 10030:
+            for alt_fill in [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]:
+                if alt_fill == filling_mode:
+                    continue
+                request["type_filling"] = alt_fill
+                result = mt5.order_send(request)
+                if result is not None and result.retcode == mt5.TRADE_RETCODE_DONE:
+                    break
+
         if result is None or result.retcode != mt5.TRADE_RETCODE_DONE:
             retcode = result.retcode if result else 10001
             comment = result.comment if result else f"Order Send Error: {mt5.last_error()}"
