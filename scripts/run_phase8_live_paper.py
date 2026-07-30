@@ -40,14 +40,15 @@ from execution_engine.metrics.telemetry import calculate_execution_telemetry
 from execution_engine.filters.news_filter import EconomicNewsFilter
 from execution_engine.filters.trend_filter import TrendFilter
 from execution_engine.filters.fvg_filter import M5FairValueGapFilter
+from execution_engine.filters.bos_filter import M5StructureBreakoutFilter
 
 
-def run_phase8_paper_trading(num_iterations: int = 5):
+def run_phase8_paper_trading(num_iterations: int = 5, strategy_mode: str = "ENSEMBLE"):
     """
     Executes Phase 8 paper trading orchestration run.
     """
     print("=" * 70)
-    print("  PHASE 8 — LIVE INFRASTRUCTURE & PAPER TRADING ENGINE INITIALIZING  ")
+    print(f"  PHASE 8 — LIVE INFRASTRUCTURE ENGINE ({strategy_mode.upper()} MODE)  ")
     print("=" * 70)
 
     # 1. Setup Category Loggers
@@ -71,6 +72,7 @@ def run_phase8_paper_trading(num_iterations: int = 5):
     news_filter = EconomicNewsFilter()
     trend_filter = TrendFilter(symbol=broker_adapter.symbol)
     fvg_filter = M5FairValueGapFilter(symbol=broker_adapter.symbol)
+    bos_filter = M5StructureBreakoutFilter(symbol=broker_adapter.symbol)
 
     decision_engine = LiveDecisionEngine(
         session_manager=session_mgr,
@@ -79,8 +81,10 @@ def run_phase8_paper_trading(num_iterations: int = 5):
         news_filter=news_filter,
         trend_filter=trend_filter,
         fvg_filter=fvg_filter,
+        bos_filter=bos_filter,
         cooldown_seconds=300.0,
-        positions_per_signal=3
+        positions_per_signal=3,
+        strategy_mode=strategy_mode
     )
 
     oms = OrderManagementSystem()
@@ -90,11 +94,18 @@ def run_phase8_paper_trading(num_iterations: int = 5):
     heartbeat = HeartbeatMonitor()
     telegram_bot = TelegramControlBot()
 
-    telegram_bot.send_notification("System Initialization", "Phase 8 Paper Trading Engine Online. Listening for live market ticks.")
-    print(f"[SYSTEM] Engine Online. Session State: {session_mgr.current_state}")
+    telegram_bot.send_notification("System Initialization", f"Phase 8 Paper Trading Engine Online ({strategy_mode.upper()} Mode). Listening for live market ticks.")
+    print(f"[SYSTEM] Engine Online ({strategy_mode.upper()} Mode). Session State: {session_mgr.current_state}")
 
     # 3. Execution Loop
     completed_candidates = []
+    total_campaign_trades = 0
+    target_campaign_trades = 300
+    strat001_wins = 0
+    strat001_losses = 0
+    strat002_wins = 0
+    strat002_losses = 0
+
     try:
         for i in range(num_iterations):
             tick = mkt_data.get_latest_tick()
@@ -120,10 +131,13 @@ def run_phase8_paper_trading(num_iterations: int = 5):
             decision_res = decision_engine.evaluate_features(features, tick)
             if decision_res.get("decision") == "EXECUTE":
                 burst_count = decision_res.get("positions_per_signal", 3)
-                decision_log.info(f"Signal Approved: {decision_res['candidate_id']} ({decision_res['direction']}) -> Executing {burst_count} Burst Positions")
-                telegram_bot.send_notification("Signal Approved", f"🟢 Candidate {decision_res['candidate_id']} ({decision_res['direction']}) Burst: {burst_count} Positions | Gap: ${decision_res.get('fvg_gap_size', 0.0):.2f}")
+                strat_ver = decision_res.get("strategy_version", "STRAT-XAU-SCALP")
+                strat_label = "STRAT-002 (M5 CHOCH/BOS)" if "BOS" in strat_ver else "STRAT-001 (M5 FVG)"
 
-                # Model 1 Instant 3-Burst Order Execution
+                decision_log.info(f"Signal Approved [{strat_label}]: {decision_res['candidate_id']} ({decision_res['direction']}) -> Executing {burst_count} Burst Positions")
+
+                burst_tickets = []
+                # Instant 3-Burst Order Execution
                 for b_idx in range(burst_count):
                     pos_payload = dict(decision_res)
                     pos_payload["candidate_id"] = f"{decision_res['candidate_id']}-B{b_idx+1}"
@@ -134,6 +148,38 @@ def run_phase8_paper_trading(num_iterations: int = 5):
                     if oms_record.get("oms_state") == "FILLED" or oms_record.get("status") == "FILLED":
                         trade_manager.register_position(oms_record)
                         completed_candidates.append(oms_record)
+                        total_campaign_trades += 1
+                        ticket_num = oms_record.get("broker_ticket", 0)
+                        if ticket_num:
+                            burst_tickets.append(f"#{ticket_num}")
+
+                # Send Strategy-Specific Telegram Notification
+                ticket_str = ", ".join(burst_tickets) if burst_tickets else f"3 Orders"
+                telegram_bot.send_notification(
+                    "Signal Approved & Executed",
+                    f"🟢 *{strat_label}* Executed Trade Payload!\n"
+                    f"• Candidate ID: `{decision_res['candidate_id']}`\n"
+                    f"• Direction: `{decision_res['direction']}` (3 Burst Orders)\n"
+                    f"• Tickets: `{ticket_str}`\n"
+                    f"• Entry Price: `${decision_res.get('entry_target', 0.0):.2f}`\n"
+                    f"• SL: `${decision_res.get('sl', 0.0):.2f}` | TP: `${decision_res.get('tp', 0.0):.2f}`\n"
+                    f"• 300-Trade Campaign Progress: `{total_campaign_trades} / {target_campaign_trades} Trades`"
+                )
+
+                # Check if 300-Trade Campaign Goal Reached
+                if total_campaign_trades >= target_campaign_trades:
+                    telegram_bot.send_notification(
+                        "🏆 300-TRADE CAMPAIGN COMPLETE!",
+                        f"🚨 *300-TRADE TEST CAMPAIGN SUCCESSFULLY FINISHED!*\n\n"
+                        f"• Total Trades Executed: `{total_campaign_trades}`\n"
+                        f"• Mode: `{strategy_mode.upper()}`\n"
+                        f"• Completed At: `{datetime.now(timezone.utc).strftime('%H:%M:%S UTC')}`\n"
+                        f"• Engine will now pause trading operations for final report review."
+                    )
+                    print("\n" + "=" * 70)
+                    print("  🏆 300-TRADE CAMPAIGN GOAL REACHED! TELEGRAM NOTIFICATION SENT.  ")
+                    print("=" * 70)
+                    break
 
             # Update position management
             updates = trade_manager.update_positions_with_market_tick(tick, broker_adapter)
@@ -169,7 +215,7 @@ def run_phase8_paper_trading(num_iterations: int = 5):
     telemetry = calculate_execution_telemetry(completed_candidates, environment="SIMULATION")
     print("\n" + "=" * 70)
     print("  PHASE 8 PAPER TRADING RUN COMPLETE  ")
-    print(f"Total Candidate Orders Processed: {len(completed_candidates)}")
+    print(f"Total Candidate Orders Processed: {len(completed_candidates)} / {target_campaign_trades}")
     print(f"Fill Rate: {telemetry['fill_rate_pct']}% | Environment: {telemetry['environment']}")
     print("=" * 70)
     return telemetry
@@ -177,8 +223,16 @@ def run_phase8_paper_trading(num_iterations: int = 5):
 
 if __name__ == "__main__":
     is_continuous = "--continuous" in sys.argv or "-c" in sys.argv
+    selected_strat = "ENSEMBLE"
+
+    for arg in sys.argv:
+        if arg.startswith("--strategy="):
+            selected_strat = arg.split("=")[1].upper()
+        elif arg in ["strat-001", "strat-002", "ensemble", "hybrid"]:
+            selected_strat = arg.upper()
+
     if is_continuous:
-        print("[INFO] Starting Continuous Live Paper Trading Mode (Press Ctrl+C to stop)...")
-        run_phase8_paper_trading(num_iterations=999999999)
+        print(f"[INFO] Starting Continuous Live Paper Trading Mode in '{selected_strat}' Mode (Press Ctrl+C to stop)...")
+        run_phase8_paper_trading(num_iterations=999999999, strategy_mode=selected_strat)
     else:
-        run_phase8_paper_trading(num_iterations=10)
+        run_phase8_paper_trading(num_iterations=10, strategy_mode=selected_strat)
