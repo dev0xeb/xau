@@ -39,6 +39,7 @@ from execution_engine.notifications.telegram_bot import TelegramControlBot
 from execution_engine.metrics.telemetry import calculate_execution_telemetry
 from execution_engine.filters.news_filter import EconomicNewsFilter
 from execution_engine.filters.trend_filter import TrendFilter
+from execution_engine.filters.fvg_filter import M5FairValueGapFilter
 
 
 def run_phase8_paper_trading(num_iterations: int = 5):
@@ -69,13 +70,17 @@ def run_phase8_paper_trading(num_iterations: int = 5):
     replay_engine = DecisionReplayEngine()
     news_filter = EconomicNewsFilter()
     trend_filter = TrendFilter(symbol=broker_adapter.symbol)
+    fvg_filter = M5FairValueGapFilter(symbol=broker_adapter.symbol)
 
     decision_engine = LiveDecisionEngine(
         session_manager=session_mgr,
         market_quality_filter=mq_filter,
         replay_engine=replay_engine,
         news_filter=news_filter,
-        trend_filter=trend_filter
+        trend_filter=trend_filter,
+        fvg_filter=fvg_filter,
+        cooldown_seconds=300.0,
+        positions_per_signal=3
     )
 
     oms = OrderManagementSystem()
@@ -114,16 +119,21 @@ def run_phase8_paper_trading(num_iterations: int = 5):
             # Evaluate decision
             decision_res = decision_engine.evaluate_features(features, tick)
             if decision_res.get("decision") == "EXECUTE":
-                decision_log.info(f"Signal Approved: {decision_res['candidate_id']} ({decision_res['direction']})")
-                telegram_bot.send_notification("Signal Approved", f"🟢 Candidate {decision_res['candidate_id']} ({decision_res['direction']}) Score: {decision_res['decision_score']}")
+                burst_count = decision_res.get("positions_per_signal", 3)
+                decision_log.info(f"Signal Approved: {decision_res['candidate_id']} ({decision_res['direction']}) -> Executing {burst_count} Burst Positions")
+                telegram_bot.send_notification("Signal Approved", f"🟢 Candidate {decision_res['candidate_id']} ({decision_res['direction']}) Burst: {burst_count} Positions | Gap: ${decision_res.get('fvg_gap_size', 0.0):.2f}")
 
-                # Send candidate through OMS
-                oms_record = oms.process_candidate(decision_res, broker_adapter)
-                execution_log.info(f"OMS Result: {oms_record.get('oms_state', 'FILLED')} | Ticket #{oms_record.get('broker_ticket', 0)}")
+                # Model 1 Instant 3-Burst Order Execution
+                for b_idx in range(burst_count):
+                    pos_payload = dict(decision_res)
+                    pos_payload["candidate_id"] = f"{decision_res['candidate_id']}-B{b_idx+1}"
+                    pos_payload["execution_uuid"] = f"{decision_res['execution_uuid']}-B{b_idx+1}"
+                    oms_record = oms.process_candidate(pos_payload, broker_adapter)
+                    execution_log.info(f"OMS Burst #{b_idx+1}: {oms_record.get('oms_state', 'FILLED')} | Ticket #{oms_record.get('broker_ticket', 0)}")
 
-                if oms_record.get("oms_state") == "FILLED" or oms_record.get("status") == "FILLED":
-                    trade_manager.register_position(oms_record)
-                    completed_candidates.append(oms_record)
+                    if oms_record.get("oms_state") == "FILLED" or oms_record.get("status") == "FILLED":
+                        trade_manager.register_position(oms_record)
+                        completed_candidates.append(oms_record)
 
             # Update position management
             updates = trade_manager.update_positions_with_market_tick(tick, broker_adapter)

@@ -20,6 +20,7 @@ from execution_engine.monitoring.trading_session_manager import TradingSessionMa
 from execution_engine.monitoring.market_quality_filter import MarketQualityFilter
 from execution_engine.filters.news_filter import EconomicNewsFilter
 from execution_engine.filters.trend_filter import TrendFilter
+from execution_engine.filters.fvg_filter import M5FairValueGapFilter
 
 class LiveDecisionEngine:
     """Real-Time Decision Intelligence & Shadow Mode Engine."""
@@ -31,14 +32,18 @@ class LiveDecisionEngine:
         replay_engine: DecisionReplayEngine = None,
         news_filter: EconomicNewsFilter = None,
         trend_filter: TrendFilter = None,
-        cooldown_seconds: float = 0.0
+        fvg_filter: M5FairValueGapFilter = None,
+        cooldown_seconds: float = 300.0,
+        positions_per_signal: int = 3
     ):
         self.session_manager = session_manager or TradingSessionManager()
         self.market_quality_filter = market_quality_filter or MarketQualityFilter()
         self.replay_engine = replay_engine or DecisionReplayEngine()
         self.news_filter = news_filter or EconomicNewsFilter()
         self.trend_filter = trend_filter or TrendFilter()
+        self.fvg_filter = fvg_filter or M5FairValueGapFilter()
         self.cooldown_seconds = cooldown_seconds
+        self.positions_per_signal = positions_per_signal
         self.last_execution_timestamp = 0.0
         self.shadow_candidates = []
 
@@ -90,79 +95,69 @@ class LiveDecisionEngine:
             )
             return {"decision": "NO_TRADE", "reason": news_reason}
 
-        # 3. Behavior Scoring Logic (STRAT-XAU-001 Ensemble)
-        vol_atr = feature_vector.get("volatility_atr", 1.5)
-        mom_vel = feature_vector.get("momentum_velocity", 0.0)
-        comp_ratio = feature_vector.get("compression_ratio", 1.0)
+        # 3. M5 Fair Value Gap (FVG) Signal Engine
+        fvg_status = self.fvg_filter.check_fvg_status()
+        if not fvg_status["is_fvg_active"]:
+            shadow_record = {
+                "decision": "NO_TRADE",
+                "reason": "No active M5 Fair Value Gap imbalance (> $0.50)",
+                "feature_snapshot": feature_vector
+            }
+            self.shadow_candidates.append(shadow_record)
+            return shadow_record
 
-        scores = {
-            "BEH-001": 0.85 if abs(mom_vel) > 1.2 and comp_ratio > 1.2 else 0.20,
-            "BEH-002": 0.90 if abs(mom_vel) > 1.8 else 0.15,
-            "BEH-003": 0.88 if comp_ratio < 0.8 and abs(mom_vel) > 0.8 else 0.10,
-            "BEH-004": 0.92 if vol_atr > 2.0 and abs(mom_vel) > 1.0 else 0.25
+        direction = fvg_status["fvg_type"]
+
+        # 4. Entry Cooldown Guardrail (5 Minutes / 300s)
+        now_ts = time.time()
+        if self.cooldown_seconds > 0 and (now_ts - self.last_execution_timestamp) < self.cooldown_seconds:
+            elapsed = round(now_ts - self.last_execution_timestamp, 1)
+            reason = f"Entry Cooldown active: {elapsed}s / {self.cooldown_seconds}s elapsed"
+            return {"decision": "NO_TRADE", "reason": reason}
+
+        cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
+        exec_uuid = uuid.uuid4().hex
+
+        # Extract real-time tick prices dynamically
+        ask_p = float(current_tick["ask"]) if (current_tick and "ask" in current_tick) else float(feature_vector.get("ask", 0.0))
+        bid_p = float(current_tick["bid"]) if (current_tick and "bid" in current_tick) else float(feature_vector.get("bid", 0.0))
+        entry_p = ask_p if direction == "BUY" else bid_p
+
+        # Model 1 Certified Parameters: SL = $1.50/oz ($15 risk), TP = $2.25/oz ($22.50 target) -> 1.5:1 R:R
+        sl_dist = 1.50
+        tp_dist = 2.25
+
+        sl_price = round(entry_p - sl_dist, 2) if direction == "BUY" else round(entry_p + sl_dist, 2)
+        tp_price = round(entry_p + tp_dist, 2) if direction == "BUY" else round(entry_p - tp_dist, 2)
+
+        candidate_payload = {
+            "decision": "EXECUTE",
+            "candidate_id": cand_id,
+            "execution_uuid": exec_uuid,
+            "strategy_version": "STRAT-XAU-FVG-BURST",
+            "direction": direction,
+            "volume_lots": 0.1,
+            "positions_per_signal": self.positions_per_signal,
+            "fvg_gap_size": fvg_status["fvg_gap_size"],
+            "risk_tier": "TIER_1",
+            "spread_usd": spread,
+            "entry_target": entry_p,
+            "sl": sl_price,
+            "tp": tp_price,
+            "created_at_utc": datetime.now(timezone.utc).isoformat()
         }
 
-        active_behaviors = [b_id for b_id, score in scores.items() if score >= 0.75]
-        mean_conviction = sum(scores.values()) / float(len(scores))
+        self.last_execution_timestamp = now_ts
 
-        # 4. Decision Threshold
-        if active_behaviors and mean_conviction >= 0.50:
-            direction = "BUY" if mom_vel > 0 else "SELL"
-
-            # 4.5 Higher Timeframe M15 Trend Alignment Guardrail Check
-            is_aligned, trend_reason = self.trend_filter.is_trend_aligned(direction)
-            if not is_aligned:
-                self.replay_engine.record_snapshot(
-                    features=feature_vector,
-                    behavior_scores=scores,
-                    portfolio_votes={"conviction": mean_conviction, "active_count": len(active_behaviors)},
-                    decision="NO_TRADE",
-                    market_snapshot={"reason": trend_reason}
-                )
-                return {"decision": "NO_TRADE", "reason": trend_reason}
-
-            cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
-            exec_uuid = uuid.uuid4().hex
-
-            # Extract real-time tick prices dynamically (no hardcoded price fallbacks)
-            ask_p = float(current_tick["ask"]) if (current_tick and "ask" in current_tick) else float(feature_vector.get("ask", 0.0))
-            bid_p = float(current_tick["bid"]) if (current_tick and "bid" in current_tick) else float(feature_vector.get("bid", 0.0))
-            entry_p = ask_p if direction == "BUY" else bid_p
-
-            # Certified Excursion Targets: SL = $2.00/oz (20 pts SL), MFE = $5.00/oz (50 pts TP) -> 2.5:1 R:R
-            sl_dist = 2.00
-            tp_dist = 5.00
-
-            sl_price = round(entry_p - sl_dist, 2) if direction == "BUY" else round(entry_p + sl_dist, 2)
-            tp_price = round(entry_p + tp_dist, 2) if direction == "BUY" else round(entry_p - tp_dist, 2)
-
-            candidate_payload = {
-                "decision": "EXECUTE",
-                "candidate_id": cand_id,
-                "execution_uuid": exec_uuid,
-                "strategy_version": "STRAT-XAU-001",
-                "behavior_ids": active_behaviors,
-                "direction": direction,
-                "volume_lots": 0.1,
-                "decision_score": round(mean_conviction, 2),
-                "risk_tier": "TIER_1",
-                "spread_usd": spread,
-                "volatility_atr": vol_atr,
-                "entry_target": entry_p,
-                "sl": sl_price,
-                "tp": tp_price,
-                "created_at_utc": datetime.now(timezone.utc).isoformat()
-            }
-
-            self.replay_engine.record_snapshot(
-                features=feature_vector,
-                behavior_scores=scores,
-                portfolio_votes={"conviction": mean_conviction, "active_count": len(active_behaviors)},
-                decision="EXECUTE",
-                candidate_snapshot=candidate_payload,
-                market_snapshot=quality_eval
-            )
-            return candidate_payload
+        self.replay_engine.record_snapshot(
+            features=feature_vector,
+            behavior_scores={"FVG_IMBALANCE": 0.95},
+            portfolio_votes={"fvg_gap": fvg_status["fvg_gap_size"]},
+            decision="EXECUTE",
+            candidate_snapshot=candidate_payload,
+            market_snapshot=quality_eval
+        )
+        return candidate_payload
 
         # Shadow Mode: NO_TRADE counterfactual candidate logging
         shadow_record = {
