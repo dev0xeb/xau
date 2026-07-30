@@ -16,7 +16,7 @@ class TradeManager:
         self,
         trailing_stop_dist_usd: float = 1.50,
         break_even_trigger_usd: float = 2.00,
-        enable_trailing_stop: bool = True
+        enable_trailing_stop: bool = False
     ):
         self.trailing_stop_dist_usd = trailing_stop_dist_usd
         self.break_even_trigger_usd = break_even_trigger_usd

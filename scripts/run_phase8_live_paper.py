@@ -79,7 +79,7 @@ def run_phase8_paper_trading(num_iterations: int = 5):
     )
 
     oms = OrderManagementSystem()
-    trade_manager = TradeManager()
+    trade_manager = TradeManager(enable_trailing_stop=False)
     position_reconciler = PositionReconciler()
     clock_sync = ClockSyncMonitor()
     heartbeat = HeartbeatMonitor()
