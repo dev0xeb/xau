@@ -19,6 +19,7 @@ from decision_engine.decision_replay import DecisionReplayEngine
 from execution_engine.monitoring.trading_session_manager import TradingSessionManager
 from execution_engine.monitoring.market_quality_filter import MarketQualityFilter
 from execution_engine.filters.news_filter import EconomicNewsFilter
+from execution_engine.filters.trend_filter import TrendFilter
 
 class LiveDecisionEngine:
     """Real-Time Decision Intelligence & Shadow Mode Engine."""
@@ -29,12 +30,14 @@ class LiveDecisionEngine:
         market_quality_filter: MarketQualityFilter = None,
         replay_engine: DecisionReplayEngine = None,
         news_filter: EconomicNewsFilter = None,
+        trend_filter: TrendFilter = None,
         cooldown_seconds: float = 0.0
     ):
         self.session_manager = session_manager or TradingSessionManager()
         self.market_quality_filter = market_quality_filter or MarketQualityFilter()
         self.replay_engine = replay_engine or DecisionReplayEngine()
         self.news_filter = news_filter or EconomicNewsFilter()
+        self.trend_filter = trend_filter or TrendFilter()
         self.cooldown_seconds = cooldown_seconds
         self.last_execution_timestamp = 0.0
         self.shadow_candidates = []
@@ -105,6 +108,19 @@ class LiveDecisionEngine:
         # 4. Decision Threshold
         if active_behaviors and mean_conviction >= 0.50:
             direction = "BUY" if mom_vel > 0 else "SELL"
+
+            # 4.5 Higher Timeframe M15 Trend Alignment Guardrail Check
+            is_aligned, trend_reason = self.trend_filter.is_trend_aligned(direction)
+            if not is_aligned:
+                self.replay_engine.record_snapshot(
+                    features=feature_vector,
+                    behavior_scores=scores,
+                    portfolio_votes={"conviction": mean_conviction, "active_count": len(active_behaviors)},
+                    decision="NO_TRADE",
+                    market_snapshot={"reason": trend_reason}
+                )
+                return {"decision": "NO_TRADE", "reason": trend_reason}
+
             cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
             exec_uuid = uuid.uuid4().hex
 
