@@ -19,6 +19,7 @@ import sys
 import os
 import time
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -137,15 +138,20 @@ def run_phase8_paper_trading(num_iterations: int = 5, strategy_mode: str = "ENSE
                 decision_log.info(f"Signal Approved [{strat_label}]: {decision_res['candidate_id']} ({decision_res['direction']}) -> Executing {burst_count} Burst Positions")
 
                 burst_tickets = []
-                # Instant 3-Burst Order Execution
-                for b_idx in range(burst_count):
+                # Parallel 3-Burst Order Execution via ThreadPoolExecutor
+                def process_burst_worker(b_idx):
                     pos_payload = dict(decision_res)
                     pos_payload["candidate_id"] = f"{decision_res['candidate_id']}-B{b_idx+1}"
                     pos_payload["execution_uuid"] = f"{decision_res['execution_uuid']}-B{b_idx+1}"
                     pos_payload["created_at_utc"] = datetime.now(timezone.utc).isoformat()
-                    oms_record = oms.process_candidate(pos_payload, broker_adapter)
-                    execution_log.info(f"OMS Burst #{b_idx+1}: {oms_record.get('oms_state', 'FILLED')} | Ticket #{oms_record.get('broker_ticket', 0)}")
+                    return oms.process_candidate(pos_payload, broker_adapter)
 
+                with ThreadPoolExecutor(max_workers=burst_count) as executor:
+                    futures = [executor.submit(process_burst_worker, b_idx) for b_idx in range(burst_count)]
+                    oms_records = [f.result() for f in futures]
+
+                for b_idx, oms_record in enumerate(oms_records):
+                    execution_log.info(f"OMS Burst #{b_idx+1}: {oms_record.get('oms_state', 'FILLED')} | Ticket #{oms_record.get('broker_ticket', 0)}")
                     if oms_record.get("oms_state") == "FILLED" or oms_record.get("status") == "FILLED":
                         trade_manager.register_position(oms_record)
                         completed_candidates.append(oms_record)
