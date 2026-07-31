@@ -27,7 +27,7 @@ class OrderValidator:
         max_spread_usd: float = 0.35,
         max_portfolio_exposure_lots: float = 5.0,
         min_account_equity_usd: float = 1000.0,
-        max_candidate_age_sec: float = 10.0
+        max_candidate_age_sec: float = 30.0
     ):
         self.min_lot_size = min_lot_size
         self.max_lot_size = max_lot_size

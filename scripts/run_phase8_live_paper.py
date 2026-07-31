@@ -142,6 +142,7 @@ def run_phase8_paper_trading(num_iterations: int = 5, strategy_mode: str = "ENSE
                     pos_payload = dict(decision_res)
                     pos_payload["candidate_id"] = f"{decision_res['candidate_id']}-B{b_idx+1}"
                     pos_payload["execution_uuid"] = f"{decision_res['execution_uuid']}-B{b_idx+1}"
+                    pos_payload["created_at_utc"] = datetime.now(timezone.utc).isoformat()
                     oms_record = oms.process_candidate(pos_payload, broker_adapter)
                     execution_log.info(f"OMS Burst #{b_idx+1}: {oms_record.get('oms_state', 'FILLED')} | Ticket #{oms_record.get('broker_ticket', 0)}")
 
