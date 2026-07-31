@@ -51,6 +51,8 @@ class LiveDecisionEngine:
         self.strategy_mode = strategy_mode.upper()
         self.last_execution_strat001 = 0.0
         self.last_execution_strat002 = 0.0
+        self.last_bar_time_strat001 = 0
+        self.last_bar_time_strat002 = 0
         self.shadow_candidates = []
 
     def evaluate_features(self, feature_vector: dict, current_tick: dict = None) -> dict:
@@ -89,13 +91,12 @@ class LiveDecisionEngine:
             )
             return {"decision": "NO_TRADE", "reason": f"Market Quality Grade: {quality_eval['grade']}"}
 
-        # 2.5 Economic Calendar News Guardrail Check
         news_blocked, news_reason = self.news_filter.is_news_blocked()
         if news_blocked:
             self.replay_engine.record_snapshot(
                 features=feature_vector,
-                behavior_scores={},
-                portfolio_votes={},
+                behavior_scores={"BEH-NEWS": 0.0},
+                portfolio_votes={"veto": True},
                 decision="NO_TRADE",
                 market_snapshot={"reason": news_reason}
             )
@@ -108,7 +109,8 @@ class LiveDecisionEngine:
         # Check STRAT-002 (M5 CHOCH / BOS Breakout)
         if self.strategy_mode in ["STRAT-002", "ENSEMBLE"]:
             bos_status = self.bos_filter.check_structure_breakout()
-            if bos_status["active"]:
+            bar_t = bos_status.get("bar_time", 0)
+            if bos_status["active"] and (bar_t == 0 or bar_t > self.last_bar_time_strat002):
                 if self.cooldown_seconds == 0 or (now_ts - self.last_execution_strat002) >= self.cooldown_seconds:
                     direction = bos_status["bos_type"]
                     entry_p = ask_p if direction == "BUY" else bid_p
@@ -118,6 +120,8 @@ class LiveDecisionEngine:
                     cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
                     exec_uuid = uuid.uuid4().hex
                     self.last_execution_strat002 = now_ts
+                    if bar_t > 0:
+                        self.last_bar_time_strat002 = bar_t
 
                     candidate_payload = {
                         "decision": "EXECUTE",
@@ -142,14 +146,15 @@ class LiveDecisionEngine:
                         portfolio_votes={"bos_type": direction},
                         decision="EXECUTE",
                         candidate_snapshot=candidate_payload,
-                        market_snapshot=quality_eval
+                        market_snapshot={"spread": spread}
                     )
                     return candidate_payload
 
         # Check STRAT-001 (M5 Fair Value Gap Imbalance)
         if self.strategy_mode in ["STRAT-001", "ENSEMBLE"]:
             fvg_status = self.fvg_filter.check_fvg_status()
-            if fvg_status["is_fvg_active"]:
+            bar_t = fvg_status.get("bar_time", 0)
+            if fvg_status["is_fvg_active"] and (bar_t == 0 or bar_t > self.last_bar_time_strat001):
                 if self.cooldown_seconds == 0 or (now_ts - self.last_execution_strat001) >= self.cooldown_seconds:
                     direction = fvg_status["fvg_type"]
                     entry_p = ask_p if direction == "BUY" else bid_p
@@ -159,6 +164,8 @@ class LiveDecisionEngine:
                     cand_id = f"CAND-LIVE-{uuid.uuid4().hex[:8]}"
                     exec_uuid = uuid.uuid4().hex
                     self.last_execution_strat001 = now_ts
+                    if bar_t > 0:
+                        self.last_bar_time_strat001 = bar_t
 
                     candidate_payload = {
                         "decision": "EXECUTE",

@@ -133,13 +133,16 @@ class M5StructureBreakoutFilter:
         # Bearish BOS: last_close < prev_sl and prev_close >= prev_sl
         is_bear_bos = (prev_sl > 0) and (last_close < prev_sl) and (prev_close >= prev_sl)
 
+        last_bar_time = int(df_comp["time"].iloc[-1]) if "time" in df_comp.columns else 0
+
         if is_bull_bos:
             return {
                 "active": True,
                 "bos_type": "BUY",
                 "swing_high": last_sh,
                 "swing_low": last_sl,
-                "breakout_price": last_close
+                "breakout_price": last_close,
+                "bar_time": last_bar_time
             }
         elif is_bear_bos:
             return {
@@ -147,7 +150,8 @@ class M5StructureBreakoutFilter:
                 "bos_type": "SELL",
                 "swing_high": last_sh,
                 "swing_low": last_sl,
-                "breakout_price": last_close
+                "breakout_price": last_close,
+                "bar_time": last_bar_time
             }
 
         return {
@@ -155,5 +159,6 @@ class M5StructureBreakoutFilter:
             "bos_type": "NONE",
             "swing_high": last_sh,
             "swing_low": last_sl,
-            "breakout_price": last_close
+            "breakout_price": last_close,
+            "bar_time": last_bar_time
         }

@@ -37,20 +37,14 @@ class M5FairValueGapFilter:
         """
         rates = mt5.copy_rates_from_pos(self.symbol, mt5.TIMEFRAME_M5, 0, 5)
         if rates is None or len(rates) < 4:
-            # Re-resolve symbol if needed
-            self.symbol = resolve_broker_symbol(self.requested_symbol)
-            rates = mt5.copy_rates_from_pos(self.symbol, mt5.TIMEFRAME_M5, 0, 5)
-
-        if rates is None or len(rates) < 4:
             logger.warning(f"[M5_FVG] Unable to fetch M5 rates from MT5 for '{self.symbol}'. Defaulting to NONE.")
-            return {"is_fvg_active": False, "fvg_type": "NONE", "fvg_gap_size": 0.0}
+            return {"is_fvg_active": False, "fvg_type": "NONE", "fvg_gap_size": 0.0, "bar_time": 0}
 
         df = pd.DataFrame(rates)
-        
-        # Candle indexing: bar0 (current incomplete candle), bar1 (last completed), bar2, bar3
+        last_bar_time = int(df["time"].iloc[-2]) if "time" in df.columns else 0
+
         low1 = df["low"].iloc[-2]
         high3 = df["high"].iloc[-4]
-        
         high1 = df["high"].iloc[-2]
         low3 = df["low"].iloc[-4]
 
@@ -59,13 +53,13 @@ class M5FairValueGapFilter:
 
         if bullish_gap >= self.fvg_min_usd:
             logger.info(f"[M5_FVG] Bullish FVG Active! Gap: ${bullish_gap:.2f}/oz")
-            return {"is_fvg_active": True, "fvg_type": "BUY", "fvg_gap_size": bullish_gap}
+            return {"is_fvg_active": True, "fvg_type": "BUY", "fvg_gap_size": bullish_gap, "bar_time": last_bar_time}
 
         if bearish_gap >= self.fvg_min_usd:
             logger.info(f"[M5_FVG] Bearish FVG Active! Gap: ${bearish_gap:.2f}/oz")
-            return {"is_fvg_active": True, "fvg_type": "SELL", "fvg_gap_size": bearish_gap}
+            return {"is_fvg_active": True, "fvg_type": "SELL", "fvg_gap_size": bearish_gap, "bar_time": last_bar_time}
 
-        return {"is_fvg_active": False, "fvg_type": "NONE", "fvg_gap_size": 0.0}
+        return {"is_fvg_active": False, "fvg_type": "NONE", "fvg_gap_size": 0.0, "bar_time": last_bar_time}
 
     def is_signal_allowed(self, direction: str) -> bool:
         """
