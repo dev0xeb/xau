@@ -83,7 +83,7 @@ def run_phase8_paper_trading(num_iterations: int = 5, strategy_mode: str = "ENSE
         trend_filter=trend_filter,
         fvg_filter=fvg_filter,
         bos_filter=bos_filter,
-        cooldown_seconds=300.0,
+        cooldown_seconds=180.0,
         positions_per_signal=3,
         strategy_mode=strategy_mode
     )

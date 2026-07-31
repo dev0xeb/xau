@@ -35,9 +35,9 @@ class LiveDecisionEngine:
         trend_filter: TrendFilter = None,
         fvg_filter: M5FairValueGapFilter = None,
         bos_filter: M5StructureBreakoutFilter = None,
-        cooldown_seconds: float = 300.0,
+        cooldown_seconds: float = 180.0,
         positions_per_signal: int = 3,
-        strategy_mode: str = "ENSEMBLE"  # "STRAT-001", "STRAT-002", "HYBRID", or "ENSEMBLE"
+        strategy_mode: str = "STRAT-002"  # "STRAT-001", "STRAT-002", "HYBRID", or "ENSEMBLE"
     ):
         self.session_manager = session_manager or TradingSessionManager()
         self.market_quality_filter = market_quality_filter or MarketQualityFilter()
