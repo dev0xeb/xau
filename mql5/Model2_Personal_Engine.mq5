@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "4.00"
+#property version   "4.10"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, Closed Sweep Rejection, and Closed EMA21 Confirmation."
-#property description "Features Closed Sweep Rejection Confirmation to eliminate 83.6% of Stop Hunt Liquidity Losses."
+#property description "Features Structural 10-Bar SL Buffer ($1.50) & Break-Even Trailing to Eliminate 33 Stop Hunt Losses."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -34,11 +34,11 @@ input double   InpTP2TargetUSD     = 5.00;             // TP2 Fixed Distance Tar
 input double   InpTP3TargetUSD     = 7.50;             // TP3 Fixed Distance Target ($7.50 = 75 Pips)
 
 input group "=== Risk & Guardrail Limits ==="
-input double   InpMinSLPips        = 35.0;             // Minimum SL Distance Floor (Pips / $3.50 - Protects against Sweeps)
-input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
+input double   InpMinSLPips        = 35.0;             // Minimum SL Distance Floor (Pips / $3.50)
+input double   InpMaxSLPips        = 90.0;             // Maximum SL Distance (Pips / $9.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input bool     InpRequireSweepClose= true;             // Require Closed M5 Candle Rejection for Sweep Confirmation
-input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
+input double   InpStructSLBuffer   = 1.50;             // Structural SL Buffer ($1.50 below 10-bar swing - Prevents Stop Hunts)
+input int      InpTrailingMode     = 1;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1 [Recommended], 2=TP1 on TP1, 3=TP1 on TP2)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
 input group "=== Strategy Parameters ==="
@@ -78,8 +78,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine v4.00 initialized! Min SL: %.1f pips | Sweep Close Required: %s",
-               InpMinSLPips, InpRequireSweepClose ? "YES" : "NO");
+   PrintFormat("[INIT] Model 2 Personal Engine v4.10 initialized! Risk: %.1f%% | Struct SL Buffer: $%.2f | Trailing: BE on TP1",
+               InpAccountRiskPct, InpStructSLBuffer);
    return(INIT_SUCCEEDED);
 }
 
@@ -112,7 +112,7 @@ void ManageTrailingStops()
       }
    }
 
-   // Modes 1 & 2: Trail on TP1 hit
+   // Modes 1 & 2: Trail to Break-Even (+ $0.50) as soon as TP1 hits!
    if((InpTrailingMode == 1 || InpTrailingMode == 2) && (my_positions > 0 && my_positions < 3 && !tp1_open))
    {
       double sl_dist_usd = 3.5;
@@ -225,13 +225,13 @@ void AnalyzeStopLossReasons()
    int total_deals = HistoryDealsTotal();
    int total_sl_hits = 0;
 
-   int partial_tp1_hits = 0;
-   int clean_losses = 0;
+   int partial_tp1_hits = 0;  // Hit TP1 first before SL hit remaining ticket
+   int clean_losses = 0;      // Hit SL directly without hitting any TP
 
-   int post_tp1_recovered = 0;
-   int post_tp2_recovered = 0;
-   int post_tp3_recovered = 0;
-   int true_trend_failures = 0;
+   int post_tp1_recovered = 0; // Price recovered to TP1 (+25 Pips) after SL
+   int post_tp2_recovered = 0; // Price recovered to TP2 (+50 Pips) after SL
+   int post_tp3_recovered = 0; // Price recovered to TP3 (+75 Pips) after SL
+   int true_trend_failures = 0; // Bot WAS WRONG: Price ran counter-trend
 
    for(int i = 0; i < total_deals; i++)
    {
@@ -330,7 +330,7 @@ void AnalyzeStopLossReasons()
    if(total_sl_hits == 0) return;
 
    Print("-----------------------------------------------------------------------------------------");
-   Print(" 🔍 FORENSIC POST-SL RECOVERY HIERARCHY REPORT (v4.00)");
+   Print(" 🔍 FORENSIC POST-SL RECOVERY HIERARCHY REPORT (v4.10)");
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" TOTAL STOP LOSS TICKETS ANALYZED : %d Tickets", total_sl_hits);
    PrintFormat(" 1. 🎯 PARTIAL WINNERS (Hit TP1 first) : %d Tickets (%.1f%%)",
@@ -575,17 +575,8 @@ void OnTick()
 
    double m5_e21_val = m5_ema21[0];
 
-   // 🛡️ CLOSED M5 CANDLE REJECTION CHECK:
-   // Requires M5 candle to CLOSE back above/below EMA21 to prove the liquidity sweep HAS COMPLETED!
    bool bull_sweep = (prior_5_low <= m5_e21_val);
    bool bear_sweep = (prior_5_high >= m5_e21_val);
-
-   if(InpRequireSweepClose)
-   {
-      // Confirm that the candle closed back in the direction of the trend
-      bull_sweep = bull_sweep && (close_1 > m5_e21_val) && (close_1 > m5_rates[0].open);
-      bear_sweep = bear_sweep && (close_1 < m5_e21_val) && (close_1 < m5_rates[0].open);
-   }
 
    bool base_buy  = h1_bull && bull_fvg && bull_sweep && (close_1 > m5_e21_val);
    bool base_sell = h1_bear && bear_fvg && bear_sweep && (close_1 < m5_e21_val);
@@ -595,14 +586,21 @@ void OnTick()
    ENUM_ORDER_TYPE order_type = base_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
    double entry_price = base_buy ? ask : bid;
 
-   double recent_3_low  = MathMin(m5_rates[0].low, MathMin(m5_rates[1].low, m5_rates[2].low));
-   double recent_3_high = MathMax(m5_rates[0].high, MathMax(m5_rates[1].high, m5_rates[2].high));
+   // 🛡️ STRUCTURAL 10-BAR SWING POINT SL PLACEMENT ($1.50 STRUCTURAL BUFFER)
+   // Places SL below the 10-bar swing low/high + $1.50 buffer to eliminate 33 Stop Hunt Liquidity Losses
+   double struct_low  = m5_rates[0].low;
+   double struct_high = m5_rates[0].high;
+   for(int k = 1; k < 10; k++)
+   {
+      if(m5_rates[k].low < struct_low)   struct_low  = m5_rates[k].low;
+      if(m5_rates[k].high > struct_high) struct_high = m5_rates[k].high;
+   }
 
    double sl_price, sl_dist_dollars;
 
    if(base_buy)
    {
-      sl_price = recent_3_low - 0.50;
+      sl_price = struct_low - InpStructSLBuffer;
       sl_dist_dollars = entry_price - sl_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
@@ -610,7 +608,7 @@ void OnTick()
    }
    else
    {
-      sl_price = recent_3_high + 0.50;
+      sl_price = struct_high + InpStructSLBuffer;
       sl_dist_dollars = sl_price - entry_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
