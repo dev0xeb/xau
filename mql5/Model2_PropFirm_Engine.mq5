@@ -5,15 +5,30 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.20"
+#property version   "3.50"
 #property description "Model 2 Prop Firm Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Evaluates H1 Macro Trend, M5 FVG, M5 Liquidity Sweep, Closed EMA21, AND Daily VWAP Alignment."
-#property description "Includes Spread Expansion Guardrail (Max 3.0 Pips) & Minimum 25-Pip Structural Stop Floor."
+#property description "Includes Stop Loss Root-Cause Diagnostic Analytics & Front-Weighted Burst Risk Allocation."
+
+enum ENUM_RISK_DISTRIBUTION
+{
+   RISK_DIST_EQUAL         = 0, // Equal Split (33.3% TP1 / 33.3% TP2 / 33.3% TP3)
+   RISK_DIST_FRONT_WEIGHTED= 1, // Front-Weighted (50% TP1 / 33.3% TP2 / 16.7% TP3) [Recommended]
+   RISK_DIST_CUSTOM        = 2  // Custom Per-Ticket Risk (Use InpTP1RiskPct, InpTP2RiskPct, InpTP3RiskPct)
+};
 
 //--- Input Parameters
 input group "=== Risk & Account Management ==="
-input double   InpAccountRiskPct   = 1.0;              // Total Account Risk per Setup (%)
-input double   InpFixedLotPerTicket= 0.01;             // Fixed Lot per Ticket (0.01 = 0.03 Lots Total / Set 0.0 for Risk %)
+input double                InpAccountRiskPct   = 3.0;                  // Total Account Risk per Setup (%)
+input ENUM_RISK_DISTRIBUTION InpRiskDistribution = RISK_DIST_FRONT_WEIGHTED; // Risk Distribution Mode
+input double                InpFixedLotPerTicket= 0.0;                  // Fixed Lot per Ticket (0.0 = Use Risk % / Set > 0 for Fixed Lots)
+
+input group "=== Custom Ticket Risk % (Used if Mode = Custom) ==="
+input double   InpTP1RiskPct       = 1.5;              // Custom Ticket 1 Risk (% of Balance)
+input double   InpTP2RiskPct       = 1.0;              // Custom Ticket 2 Risk (% of Balance)
+input double   InpTP3RiskPct       = 0.5;              // Custom Ticket 3 Risk (% of Balance)
+
+input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
@@ -86,7 +101,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   Print("[INIT] Model 2 Prop Firm Engine (Spread-Guarded) initialized! Max Spread: ", InpMaxSpreadPips, " pips | Min SL: ", InpMinSLPips, " pips");
+   PrintFormat("[INIT] Model 2 Prop Firm Engine initialized! Total Risk per Setup: %.1f%% | Distribution Mode: %s",
+               InpAccountRiskPct, EnumToString(InpRiskDistribution));
    return(INIT_SUCCEEDED);
 }
 
@@ -223,6 +239,100 @@ string GetEntryComment(ulong pos_id)
 }
 
 //+------------------------------------------------------------------+
+//| Diagnostic Engine: Analyze Stop Loss Root Causes                 |
+//+------------------------------------------------------------------+
+void AnalyzeStopLossReasons()
+{
+   if(!HistorySelect(0, TimeCurrent())) return;
+
+   int total_deals = HistoryDealsTotal();
+   int total_sl_hits = 0;
+
+   int cat_spread_friction  = 0; // Quick stop-out within 1-2 bars / Spread noise
+   int cat_reversal_whipsaw = 0; // Macro H1 momentum shift / Trend reversal
+   int cat_post_tp_retrace  = 0; // Partial target hit first, then retraced to SL
+   int cat_liquidity_sweep  = 0; // Deep structural sweep past swing level
+
+   for(int i = 0; i < total_deals; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket <= 0) continue;
+
+      long magic = HistoryDealGetInteger(ticket, DEAL_MAGIC);
+      if(magic != InpMagicNumber) continue;
+
+      long entry_type = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+      if(entry_type != DEAL_ENTRY_OUT) continue;
+
+      double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT) + 
+                      HistoryDealGetDouble(ticket, DEAL_COMMISSION) + 
+                      HistoryDealGetDouble(ticket, DEAL_SWAP);
+
+      if(profit < 0)
+      {
+         total_sl_hits++;
+         datetime exit_time  = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+         ulong pos_id        = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+         double exit_price   = HistoryDealGetDouble(ticket, DEAL_PRICE);
+
+         datetime entry_time = exit_time;
+         double entry_price  = exit_price;
+         long deal_type      = -1;
+
+         for(int j = 0; j < total_deals; j++)
+         {
+            ulong t_in = HistoryDealGetTicket(j);
+            if(t_in > 0 && HistoryDealGetInteger(t_in, DEAL_POSITION_ID) == pos_id && HistoryDealGetInteger(t_in, DEAL_ENTRY) == DEAL_ENTRY_IN)
+            {
+               entry_time = (datetime)HistoryDealGetInteger(t_in, DEAL_TIME);
+               entry_price = HistoryDealGetDouble(t_in, DEAL_PRICE);
+               deal_type   = HistoryDealGetInteger(t_in, DEAL_TYPE);
+               break;
+            }
+         }
+
+         int duration_sec = (int)(exit_time - entry_time);
+         int duration_bars = duration_sec / 300; // M5 bars count
+
+         double sl_dist_usd = MathAbs(entry_price - exit_price);
+
+         if(duration_bars <= 2 && sl_dist_usd <= 2.8)
+         {
+            cat_spread_friction++;
+         }
+         else if(duration_bars > 12)
+         {
+            cat_reversal_whipsaw++;
+         }
+         else if(sl_dist_usd > 5.0)
+         {
+            cat_liquidity_sweep++;
+         }
+         else
+         {
+            cat_post_tp_retrace++;
+         }
+      }
+   }
+
+   if(total_sl_hits == 0) return;
+
+   Print("-----------------------------------------------------------------------------------------");
+   Print(" 🔍 STOP LOSS ROOT-CAUSE DIAGNOSTIC ANALYTICS REPORT");
+   Print("-----------------------------------------------------------------------------------------");
+   PrintFormat(" TOTAL STOP LOSS EVENTS ANALYZED: %d Tickets", total_sl_hits);
+   PrintFormat(" 1. ⚡ Spread Spike / Tight Noise Stop-Outs : %d Tickets (%.1f%%)",
+               cat_spread_friction, ((double)cat_spread_friction / total_sl_hits) * 100.0);
+   PrintFormat(" 2. 🔄 H1 Trend Reversal / Momentum Shifts  : %d Tickets (%.1f%%)",
+               cat_reversal_whipsaw, ((double)cat_reversal_whipsaw / total_sl_hits) * 100.0);
+   PrintFormat(" 3. 🎯 Retracement / Post-Move Stop-Outs    : %d Tickets (%.1f%%)",
+               cat_post_tp_retrace, ((double)cat_post_tp_retrace / total_sl_hits) * 100.0);
+   PrintFormat(" 4. 🌊 Deep Liquidity Sweep Expansion Stops : %d Tickets (%.1f%%)",
+               cat_liquidity_sweep, ((double)cat_liquidity_sweep / total_sl_hits) * 100.0);
+   Print("-----------------------------------------------------------------------------------------");
+}
+
+//+------------------------------------------------------------------+
 //| Analyze Deal History & Output Performance Report                 |
 //+------------------------------------------------------------------+
 void GeneratePerformanceAnalytics()
@@ -303,6 +413,9 @@ void GeneratePerformanceAnalytics()
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" PROFIT FACTOR           : %.2f", profit_factor);
    PrintFormat(" Gross Profit / Gross Loss: +$%.2f / -$%.2f", total_gross_profit, total_gross_loss);
+   
+   AnalyzeStopLossReasons();
+   
    Print("=========================================================================================");
 }
 
@@ -319,7 +432,7 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| Calculate Lot Size per Ticket                                    |
+//| Calculate Lot Size per Specific Ticket                           |
 //+------------------------------------------------------------------+
 double CalculateTicketLotSize(double ticket_risk_usd, double sl_distance_dollars)
 {
@@ -486,16 +599,42 @@ void OnTick()
    double tp3_price = base_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
 
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double total_risk_usd = balance * (InpAccountRiskPct / 100.0);
-   double ticket_risk_usd = total_risk_usd / 3.0;
+   
+   double r1_pct = 1.0, r2_pct = 1.0, r3_pct = 1.0;
 
-   double lot_per_ticket = CalculateTicketLotSize(ticket_risk_usd, sl_dist_dollars);
+   if(InpRiskDistribution == RISK_DIST_EQUAL)
+   {
+      r1_pct = InpAccountRiskPct / 3.0;
+      r2_pct = InpAccountRiskPct / 3.0;
+      r3_pct = InpAccountRiskPct / 3.0;
+   }
+   else if(InpRiskDistribution == RISK_DIST_FRONT_WEIGHTED)
+   {
+      r1_pct = InpAccountRiskPct * 0.50;       // 50% of total setup risk to TP1
+      r2_pct = InpAccountRiskPct * (1.0 / 3.0); // 33.3% of total setup risk to TP2
+      r3_pct = InpAccountRiskPct * (1.0 / 6.0); // 16.7% of total setup risk to TP3
+   }
+   else if(InpRiskDistribution == RISK_DIST_CUSTOM)
+   {
+      r1_pct = InpTP1RiskPct;
+      r2_pct = InpTP2RiskPct;
+      r3_pct = InpTP3RiskPct;
+   }
+
+   double r1_usd = balance * (r1_pct / 100.0);
+   double r2_usd = balance * (r2_pct / 100.0);
+   double r3_usd = balance * (r3_pct / 100.0);
+
+   double lot_t1 = CalculateTicketLotSize(r1_usd, sl_dist_dollars);
+   double lot_t2 = CalculateTicketLotSize(r2_usd, sl_dist_dollars);
+   double lot_t3 = CalculateTicketLotSize(r3_usd, sl_dist_dollars);
 
    total_setups_count++;
-   PrintFormat("[PROP FIRM ENGINE SIGNAL #%d] %s @ $%.2f | SL: $%.2f | TP1: $%.2f | TP2: $%.2f | TP3: $%.2f | Lot: %.2f per ticket",
-               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, sl_price, tp1_price, tp2_price, tp3_price, lot_per_ticket);
+   PrintFormat("[PROP FIRM ENGINE SIGNAL #%d] %s @ $%.2f | SL: $%.2f | Lots: T1=%.2f, T2=%.2f, T3=%.2f",
+               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, sl_price, lot_t1, lot_t2, lot_t3);
 
-   double tp_array[3] = {tp1_price, tp2_price, tp3_price};
+   double tp_array[3]  = {tp1_price, tp2_price, tp3_price};
+   double lot_array[3] = {lot_t1, lot_t2, lot_t3};
 
    for(int i = 0; i < 3; i++)
    {
@@ -504,7 +643,7 @@ void OnTick()
 
       request.action       = TRADE_ACTION_DEAL;
       request.symbol       = _Symbol;
-      request.volume       = lot_per_ticket;
+      request.volume       = lot_array[i];
       request.type         = order_type;
       request.price        = entry_price;
       request.sl           = sl_price;
@@ -522,7 +661,7 @@ void OnTick()
       else
       {
          total_tickets_count++;
-         PrintFormat("[SUCCESS] Ticket #%d placed! Ticket: %d | TP: $%.2f", i + 1, result.order, tp_array[i]);
+         PrintFormat("[SUCCESS] Ticket #%d placed! Lot: %.2f | TP: $%.2f", i + 1, lot_array[i], tp_array[i]);
       }
    }
 }

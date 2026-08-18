@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.40"
+#property version   "3.50"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Supports Total Setup Risk % with Equal vs Front-Weighted (50%/33%/17%) Burst Risk Distribution."
+#property description "Includes Stop Loss Root-Cause Diagnostic Analytics & Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -72,7 +72,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine initialized! Total Risk per Setup: %.1f%% | Mode: %s",
+   PrintFormat("[INIT] Model 2 Personal Engine initialized! Total Risk per Setup: %.1f%% | Distribution Mode: %s",
                InpAccountRiskPct, EnumToString(InpRiskDistribution));
    return(INIT_SUCCEEDED);
 }
@@ -210,6 +210,106 @@ string GetEntryComment(ulong pos_id)
 }
 
 //+------------------------------------------------------------------+
+//| Diagnostic Engine: Analyze Stop Loss Root Causes                 |
+//+------------------------------------------------------------------+
+void AnalyzeStopLossReasons()
+{
+   if(!HistorySelect(0, TimeCurrent())) return;
+
+   int total_deals = HistoryDealsTotal();
+   int total_sl_hits = 0;
+
+   int cat_spread_friction  = 0; // Quick stop-out within 1-2 bars / Spread noise
+   int cat_reversal_whipsaw = 0; // Macro H1 momentum shift / Trend reversal
+   int cat_post_tp_retrace  = 0; // Partial target hit first, then retraced to SL
+   int cat_liquidity_sweep  = 0; // Deep structural sweep past swing level
+
+   for(int i = 0; i < total_deals; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket <= 0) continue;
+
+      long magic = HistoryDealGetInteger(ticket, DEAL_MAGIC);
+      if(magic != InpMagicNumber) continue;
+
+      long entry_type = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+      if(entry_type != DEAL_ENTRY_OUT) continue;
+
+      double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT) + 
+                      HistoryDealGetDouble(ticket, DEAL_COMMISSION) + 
+                      HistoryDealGetDouble(ticket, DEAL_SWAP);
+
+      if(profit < 0)
+      {
+         total_sl_hits++;
+         datetime exit_time  = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+         ulong pos_id        = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+         double exit_price   = HistoryDealGetDouble(ticket, DEAL_PRICE);
+
+         // Find matching entry deal
+         datetime entry_time = exit_time;
+         double entry_price  = exit_price;
+         long deal_type      = -1;
+
+         for(int j = 0; j < total_deals; j++)
+         {
+            ulong t_in = HistoryDealGetTicket(j);
+            if(t_in > 0 && HistoryDealGetInteger(t_in, DEAL_POSITION_ID) == pos_id && HistoryDealGetInteger(t_in, DEAL_ENTRY) == DEAL_ENTRY_IN)
+            {
+               entry_time = (datetime)HistoryDealGetInteger(t_in, DEAL_TIME);
+               entry_price = HistoryDealGetDouble(t_in, DEAL_PRICE);
+               deal_type   = HistoryDealGetInteger(t_in, DEAL_TYPE);
+               break;
+            }
+         }
+
+         int duration_sec = (int)(exit_time - entry_time);
+         int duration_bars = duration_sec / 300; // M5 bars count
+
+         double sl_dist_usd = MathAbs(entry_price - exit_price);
+
+         // Category Diagnostic Logic
+         if(duration_bars <= 2 && sl_dist_usd <= 2.8)
+         {
+            // Rapid stop-out within 10 minutes on tight stop -> Spread Friction / Noise
+            cat_spread_friction++;
+         }
+         else if(duration_bars > 12)
+         {
+            // Position held for > 1 hour before stopping out -> Macro Trend Shift / Reversal
+            cat_reversal_whipsaw++;
+         }
+         else if(sl_dist_usd > 5.0)
+         {
+            // Stopped out on a wide structural SL distance -> Deep Sweep Expansion
+            cat_liquidity_sweep++;
+         }
+         else
+         {
+            // Intermediate retrace stop -> Post-TP / Retracement Stop
+            cat_post_tp_retrace++;
+         }
+      }
+   }
+
+   if(total_sl_hits == 0) return;
+
+   Print("-----------------------------------------------------------------------------------------");
+   Print(" 🔍 STOP LOSS ROOT-CAUSE DIAGNOSTIC ANALYTICS REPORT");
+   Print("-----------------------------------------------------------------------------------------");
+   PrintFormat(" TOTAL STOP LOSS EVENTS ANALYZED: %d Tickets", total_sl_hits);
+   PrintFormat(" 1. ⚡ Spread Spike / Tight Noise Stop-Outs : %d Tickets (%.1f%%)",
+               cat_spread_friction, ((double)cat_spread_friction / total_sl_hits) * 100.0);
+   PrintFormat(" 2. 🔄 H1 Trend Reversal / Momentum Shifts  : %d Tickets (%.1f%%)",
+               cat_reversal_whipsaw, ((double)cat_reversal_whipsaw / total_sl_hits) * 100.0);
+   PrintFormat(" 3. 🎯 Retracement / Post-Move Stop-Outs    : %d Tickets (%.1f%%)",
+               cat_post_tp_retrace, ((double)cat_post_tp_retrace / total_sl_hits) * 100.0);
+   PrintFormat(" 4. 🌊 Deep Liquidity Sweep Expansion Stops : %d Tickets (%.1f%%)",
+               cat_liquidity_sweep, ((double)cat_liquidity_sweep / total_sl_hits) * 100.0);
+   Print("-----------------------------------------------------------------------------------------");
+}
+
+//+------------------------------------------------------------------+
 //| Analyze Deal History & Output Performance Report                 |
 //+------------------------------------------------------------------+
 void GeneratePerformanceAnalytics()
@@ -290,6 +390,9 @@ void GeneratePerformanceAnalytics()
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" PROFIT FACTOR           : %.2f", profit_factor);
    PrintFormat(" Gross Profit / Gross Loss: +$%.2f / -$%.2f", total_gross_profit, total_gross_loss);
+   
+   AnalyzeStopLossReasons();
+   
    Print("=========================================================================================");
 }
 
