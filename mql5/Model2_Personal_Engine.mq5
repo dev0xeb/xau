@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "5.00"
+#property version   "5.10"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, Closed EMA21, and 58% ML Quality Gate."
-#property description "Features Structural Proven Swing Targets (10-Bar / 20-Bar / 40-Bar Pivots) & Front-Weighted Risk Allocation."
+#property description "Features High-Edge Mathematical R:R Targets (1.0x / 2.0x / 3.0x SL) & Front-Weighted Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -19,8 +19,8 @@ enum ENUM_RISK_DISTRIBUTION
 
 enum ENUM_TP_MODE
 {
-   TP_MODE_MATHEMATICAL    = 0, // Mathematical R:R Multiples (1.0x / 2.0x / 3.0x SL)
-   TP_MODE_STRUCTURAL      = 1  // Structural Proven Targets (10-Bar / 20-Bar / 40-Bar Swing Extremes) [Recommended]
+   TP_MODE_MATHEMATICAL    = 0, // Mathematical R:R Multiples (1.0x / 2.0x / 3.0x SL) [Highest Edge]
+   TP_MODE_STRUCTURAL      = 1  // Structural Proven Targets (10-Bar / 20-Bar / 40-Bar Swing Extremes)
 };
 
 //--- Input Parameters
@@ -35,7 +35,7 @@ input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
 input group "=== Take Profit Target Selection ==="
-input ENUM_TP_MODE InpTPMode       = TP_MODE_STRUCTURAL; // Take Profit Mode (Structural Swing vs Mathematical)
+input ENUM_TP_MODE InpTPMode       = TP_MODE_MATHEMATICAL; // Take Profit Mode (Mathematical R:R vs Structural)
 
 input group "=== Machine Learning & Quality Gate ==="
 input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
@@ -87,7 +87,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine v5.00 initialized! TP Mode: %s | Risk: %.1f%% | ML Gate: %.1f%%",
+   PrintFormat("[INIT] Model 2 Personal Engine v5.10 initialized! TP Mode: %s | Risk: %.1f%% | ML Gate: %.1f%%",
                EnumToString(InpTPMode), InpAccountRiskPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
@@ -266,7 +266,7 @@ void GeneratePerformanceAnalytics()
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v5.00 - %s)", EnumToString(InpTPMode));
+   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v5.10 - %s)", EnumToString(InpTPMode));
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -473,7 +473,7 @@ void OnTick()
       return;
    }
 
-   // 🎯 TAKE PROFIT SELECTION (Structural Proven vs Mathematical R:R)
+   // 🎯 TAKE PROFIT SELECTION (Mathematical R:R vs Structural)
    double tp1_price = 0.0, tp2_price = 0.0, tp3_price = 0.0;
 
    if(InpTPMode == TP_MODE_MATHEMATICAL)
@@ -484,10 +484,6 @@ void OnTick()
    }
    else
    {
-      // 🏆 STRUCTURAL PROVEN TAKE PROFIT SELECTION
-      // TP1 = Nearest 10-Bar Swing Extreme
-      // TP2 = Mid 20-Bar Structural Pivot Extreme
-      // TP3 = Session 40-Bar Macro Extreme
       double struct_10_high = m5_rates[0].high;
       double struct_20_high = m5_rates[0].high;
       double struct_40_high = m5_rates[0].high;

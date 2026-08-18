@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "5.00"
+#property version   "5.10"
 #property description "Model 2 Prop Firm Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 58% ML Quality Gate."
-#property description "Features Structural Proven Swing Targets (10-Bar / 20-Bar / 40-Bar Pivots) & Front-Weighted Risk Allocation."
+#property description "Features High-Edge Mathematical R:R Targets (1.0x / 2.0x / 3.0x SL) & Front-Weighted Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -19,8 +19,8 @@ enum ENUM_RISK_DISTRIBUTION
 
 enum ENUM_TP_MODE
 {
-   TP_MODE_MATHEMATICAL    = 0, // Mathematical R:R Multiples (1.0x / 2.0x / 3.0x SL)
-   TP_MODE_STRUCTURAL      = 1  // Structural Proven Targets (10-Bar / 20-Bar / 40-Bar Swing Extremes) [Recommended]
+   TP_MODE_MATHEMATICAL    = 0, // Mathematical R:R Multiples (1.0x / 2.0x / 3.0x SL) [Highest Edge]
+   TP_MODE_STRUCTURAL      = 1  // Structural Proven Targets (10-Bar / 20-Bar / 40-Bar Swing Extremes)
 };
 
 //--- Input Parameters
@@ -32,7 +32,7 @@ input double                InpMaxOverallDDPct  = 8.0;                  // Hard 
 input double                InpFixedLotPerTicket= 0.0;                  // Fixed Lot per Ticket (0.0 = Use Risk % / Set > 0 for Fixed Lots)
 
 input group "=== Take Profit Target Selection ==="
-input ENUM_TP_MODE InpTPMode       = TP_MODE_STRUCTURAL; // Take Profit Mode (Structural Swing vs Mathematical)
+input ENUM_TP_MODE InpTPMode       = TP_MODE_MATHEMATICAL; // Take Profit Mode (Mathematical R:R vs Structural)
 
 input group "=== Machine Learning & Quality Gate ==="
 input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
@@ -93,7 +93,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Prop Firm Engine v5.00 initialized! TP Mode: %s | Max Daily Loss: %.1f%% | ML Gate: %.1f%%",
+   PrintFormat("[INIT] Model 2 Prop Firm Engine v5.10 initialized! TP Mode: %s | Max Daily Loss: %.1f%% | ML Gate: %.1f%%",
                EnumToString(InpTPMode), InpMaxDailyLossPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
@@ -270,7 +270,7 @@ void GeneratePerformanceAnalytics()
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v5.00 - %s)", EnumToString(InpTPMode));
+   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v5.10 - %s)", EnumToString(InpTPMode));
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -501,7 +501,7 @@ void OnTick()
       return;
    }
 
-   // 🎯 TAKE PROFIT SELECTION (Structural Proven vs Mathematical R:R)
+   // 🎯 TAKE PROFIT SELECTION (Mathematical R:R vs Structural)
    double tp1_price = 0.0, tp2_price = 0.0, tp3_price = 0.0;
 
    if(InpTPMode == TP_MODE_MATHEMATICAL)
