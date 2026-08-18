@@ -5,18 +5,19 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.10"
+#property version   "3.20"
 #property description "Model 2 Prop Firm Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Evaluates H1 Macro Trend, M5 FVG, M5 Liquidity Sweep, Closed EMA21, AND Daily VWAP Alignment."
-#property description "Uses 3-Burst Multi-Ticket Scaling System with Mode 3 Trailing SL (TP1 Price AFTER TP2 Hit)."
+#property description "Includes Spread Expansion Guardrail (Max 3.0 Pips) & Minimum 25-Pip Structural Stop Floor."
 
 //--- Input Parameters
 input group "=== Risk & Account Management ==="
 input double   InpAccountRiskPct   = 1.0;              // Total Account Risk per Setup (%)
 input double   InpFixedLotPerTicket= 0.01;             // Fixed Lot per Ticket (0.01 = 0.03 Lots Total / Set 0.0 for Risk %)
-input double   InpMinSLPips        = 15.0;             // Minimum SL Distance (Pips / $0.15)
-input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $0.80)
-input int      InpTrailingMode     = 3;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
+input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
+input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
+input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
+input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
 input int      InpMagicNumber      = 2002;             // Magic Number (Prop Firm Engine)
 
 input group "=== Strategy Parameters ==="
@@ -85,7 +86,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   Print("[INIT] Model 2 Prop Firm Engine initialized! Trailing Mode: ", InpTrailingMode, " | Lot per Ticket: ", InpFixedLotPerTicket);
+   Print("[INIT] Model 2 Prop Firm Engine (Spread-Guarded) initialized! Max Spread: ", InpMaxSpreadPips, " pips | Min SL: ", InpMinSLPips, " pips");
    return(INIT_SUCCEEDED);
 }
 
@@ -121,7 +122,7 @@ void ManageTrailingStops()
    // Modes 1 & 2: Trail on TP1 hit
    if((InpTrailingMode == 1 || InpTrailingMode == 2) && (my_positions > 0 && my_positions < 3 && !tp1_open))
    {
-      double sl_dist_usd = 2.0;
+      double sl_dist_usd = 2.5;
       double new_sl = 0.0;
 
       if(pos_type == POSITION_TYPE_BUY)
@@ -384,6 +385,17 @@ void OnTick()
       return;
    }
 
+   // 🛡️ SPREAD EXPANSION GUARDRAIL: Reject entries if spread exceeds InpMaxSpreadPips ($0.30)
+   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double current_spread_dollars = ask - bid;
+   if(current_spread_dollars > (InpMaxSpreadPips * 0.10))
+   {
+      PrintFormat("[SPREAD GUARD] Current spread ($%.2f) exceeds max allowed ($%.2f). Skipping trade.",
+                  current_spread_dollars, InpMaxSpreadPips * 0.10);
+      return;
+   }
+
    double h1_close[], h1_ema21[], h1_ema50[];
    ArraySetAsSeries(h1_close, true);
    ArraySetAsSeries(h1_ema21, true);
@@ -445,8 +457,6 @@ void OnTick()
    if(!base_buy && !base_sell) return;
 
    ENUM_ORDER_TYPE order_type = base_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
-   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double entry_price = base_buy ? ask : bid;
 
    double recent_3_low  = MathMin(m5_rates[0].low, MathMin(m5_rates[1].low, m5_rates[2].low));
