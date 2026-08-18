@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.60"
+#property version   "3.70"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Features ATR-Dynamic Liquidity Sweep SL Protection, SL Diagnostics, & Front-Weighted Risk."
+#property description "Features Fixed-Target Fast Exits with Protected Structural SL Buffers."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -28,11 +28,16 @@ input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (
 input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (% of Balance)
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
+input group "=== Take Profit Fixed Target Levels ($) ==="
+input double   InpTP1TargetUSD     = 2.50;             // TP1 Fixed Distance Target ($2.50 = 25 Pips)
+input double   InpTP2TargetUSD     = 5.00;             // TP2 Fixed Distance Target ($5.00 = 50 Pips)
+input double   InpTP3TargetUSD     = 7.50;             // TP3 Fixed Distance Target ($7.50 = 75 Pips)
+
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input double   InpSLBufferATRMult  = 1.5;              // ATR Multiplier for Liquidity Sweep SL Buffer ($1.00 - $2.50)
+input double   InpSLBufferATRMult  = 1.5;              // ATR Multiplier for Liquidity Sweep SL Buffer
 input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
@@ -74,8 +79,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine initialized! Risk per Setup: %.1f%% | ATR SL Buffer: %.1fx",
-               InpAccountRiskPct, InpSLBufferATRMult);
+   PrintFormat("[INIT] Model 2 Personal Engine v3.70 initialized! Risk: %.1f%% | TP Targets: $%.2f / $%.2f / $%.2f",
+               InpAccountRiskPct, InpTP1TargetUSD, InpTP2TargetUSD, InpTP3TargetUSD);
    return(INIT_SUCCEEDED);
 }
 
@@ -377,9 +382,9 @@ void GeneratePerformanceAnalytics()
    PrintFormat("   - Losing Tickets       : %d Tickets", losing_deals);
    Print("-----------------------------------------------------------------------------------------");
    Print(" TICKET TARGET HIT BREAKDOWN:");
-   PrintFormat("   - TP1 Hits (1.0x SL)   : %d Tickets", tp1_count);
-   PrintFormat("   - TP2 Hits (2.0x SL)   : %d Tickets", tp2_count);
-   PrintFormat("   - TP3 Hits (3.0x SL)   : %d Tickets", tp3_count);
+   PrintFormat("   - TP1 Hits (Fast Exit) : %d Tickets", tp1_count);
+   PrintFormat("   - TP2 Hits (Mid Target): %d Tickets", tp2_count);
+   PrintFormat("   - TP3 Hits (Runner)    : %d Tickets", tp3_count);
    PrintFormat("   - Stop Loss Hits (SL)  : %d Tickets", sl_count);
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" PROFIT FACTOR           : %.2f", profit_factor);
@@ -541,24 +546,14 @@ void OnTick()
    ENUM_ORDER_TYPE order_type = base_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
    double entry_price = base_buy ? ask : bid;
 
-   // 🛡️ DYNAMIC ATR-BUFFERED STRUCTURAL SL CALCULATION
-   // Uses 10-bar structural swing low/high + ATR buffer to protect against deep liquidity sweeps
-   double current_atr_usd = m5_atr14[0];
-   double dynamic_buffer  = MathMax(1.00, current_atr_usd * InpSLBufferATRMult);
-
-   double struct_low  = m5_rates[0].low;
-   double struct_high = m5_rates[0].high;
-   for(int k = 1; k < 10; k++)
-   {
-      if(m5_rates[k].low < struct_low)   struct_low  = m5_rates[k].low;
-      if(m5_rates[k].high > struct_high) struct_high = m5_rates[k].high;
-   }
+   double recent_3_low  = MathMin(m5_rates[0].low, MathMin(m5_rates[1].low, m5_rates[2].low));
+   double recent_3_high = MathMax(m5_rates[0].high, MathMax(m5_rates[1].high, m5_rates[2].high));
 
    double sl_price, sl_dist_dollars;
 
    if(base_buy)
    {
-      sl_price = struct_low - dynamic_buffer;
+      sl_price = recent_3_low - 0.50;
       sl_dist_dollars = entry_price - sl_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
@@ -566,16 +561,18 @@ void OnTick()
    }
    else
    {
-      sl_price = struct_high + dynamic_buffer;
+      sl_price = recent_3_high + 0.50;
       sl_dist_dollars = sl_price - entry_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
       sl_price = entry_price + sl_dist_dollars;
    }
 
-   double tp1_price = base_buy ? (entry_price + sl_dist_dollars * 1.0) : (entry_price - sl_dist_dollars * 1.0);
-   double tp2_price = base_buy ? (entry_price + sl_dist_dollars * 2.0) : (entry_price - sl_dist_dollars * 2.0);
-   double tp3_price = base_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
+   // 🎯 FIXED FAST TAKE-PROFIT TARGETS ($2.50 / $5.00 / $7.50)
+   // Prevents wider SL buffers from pushing TP targets unnaturally far away!
+   double tp1_price = base_buy ? (entry_price + InpTP1TargetUSD) : (entry_price - InpTP1TargetUSD);
+   double tp2_price = base_buy ? (entry_price + InpTP2TargetUSD) : (entry_price - InpTP2TargetUSD);
+   double tp3_price = base_buy ? (entry_price + InpTP3TargetUSD) : (entry_price - InpTP3TargetUSD);
 
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    
