@@ -5,17 +5,28 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.30"
+#property version   "3.40"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Includes Front-Weighted Burst Risk Allocation (3% TP1 / 2% TP2 / 1% TP3) & Spread Expansion Guardrail."
+#property description "Supports Total Setup Risk % with Equal vs Front-Weighted (50%/33%/17%) Burst Risk Distribution."
+
+enum ENUM_RISK_DISTRIBUTION
+{
+   RISK_DIST_EQUAL         = 0, // Equal Split (33.3% TP1 / 33.3% TP2 / 33.3% TP3)
+   RISK_DIST_FRONT_WEIGHTED= 1, // Front-Weighted (50% TP1 / 33.3% TP2 / 16.7% TP3) [Recommended]
+   RISK_DIST_CUSTOM        = 2  // Custom Per-Ticket Risk (Use InpTP1RiskPct, InpTP2RiskPct, InpTP3RiskPct)
+};
 
 //--- Input Parameters
-input group "=== Front-Weighted Risk Allocation ==="
-input double   InpTP1RiskPct       = 3.0;              // Ticket 1 (TP1) Risk (% of Balance)
-input double   InpTP2RiskPct       = 2.0;              // Ticket 2 (TP2) Risk (% of Balance)
-input double   InpTP3RiskPct       = 1.0;              // Ticket 3 (TP3) Risk (% of Balance)
-input double   InpFixedLotPerTicket= 0.0;              // Fixed Lot per Ticket (0.0 = Use 3%-2%-1% Risk / Set > 0 for Fixed Lots)
+input group "=== Risk & Account Management ==="
+input double                InpAccountRiskPct   = 3.0;                  // Total Account Risk per Setup (%)
+input ENUM_RISK_DISTRIBUTION InpRiskDistribution = RISK_DIST_FRONT_WEIGHTED; // Risk Distribution Mode
+input double                InpFixedLotPerTicket= 0.0;                  // Fixed Lot per Ticket (0.0 = Use Risk % / Set > 0 for Fixed Lots)
+
+input group "=== Custom Ticket Risk % (Used if Mode = Custom) ==="
+input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (% of Balance)
+input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (% of Balance)
+input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
@@ -61,8 +72,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine (Front-Weighted 3%%-2%%-1%%) initialized! Risk: TP1=%.1f%%, TP2=%.1f%%, TP3=%.1f%%",
-               InpTP1RiskPct, InpTP2RiskPct, InpTP3RiskPct);
+   PrintFormat("[INIT] Model 2 Personal Engine initialized! Total Risk per Setup: %.1f%% | Mode: %s",
+               InpAccountRiskPct, EnumToString(InpRiskDistribution));
    return(INIT_SUCCEEDED);
 }
 
@@ -458,10 +469,30 @@ void OnTick()
 
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    
-   // Asymmetric Risk USD for each ticket
-   double r1_usd = balance * (InpTP1RiskPct / 100.0);
-   double r2_usd = balance * (InpTP2RiskPct / 100.0);
-   double r3_usd = balance * (InpTP3RiskPct / 100.0);
+   double r1_pct = 1.0, r2_pct = 1.0, r3_pct = 1.0;
+
+   if(InpRiskDistribution == RISK_DIST_EQUAL)
+   {
+      r1_pct = InpAccountRiskPct / 3.0;
+      r2_pct = InpAccountRiskPct / 3.0;
+      r3_pct = InpAccountRiskPct / 3.0;
+   }
+   else if(InpRiskDistribution == RISK_DIST_FRONT_WEIGHTED)
+   {
+      r1_pct = InpAccountRiskPct * 0.50;       // 50% of total setup risk to TP1
+      r2_pct = InpAccountRiskPct * (1.0 / 3.0); // 33.3% of total setup risk to TP2
+      r3_pct = InpAccountRiskPct * (1.0 / 6.0); // 16.7% of total setup risk to TP3
+   }
+   else if(InpRiskDistribution == RISK_DIST_CUSTOM)
+   {
+      r1_pct = InpTP1RiskPct;
+      r2_pct = InpTP2RiskPct;
+      r3_pct = InpTP3RiskPct;
+   }
+
+   double r1_usd = balance * (r1_pct / 100.0);
+   double r2_usd = balance * (r2_pct / 100.0);
+   double r3_usd = balance * (r3_pct / 100.0);
 
    double lot_t1 = CalculateTicketLotSize(r1_usd, sl_dist_dollars);
    double lot_t2 = CalculateTicketLotSize(r2_usd, sl_dist_dollars);
