@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.70"
+#property version   "3.80"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Features Fixed-Target Fast Exits with Protected Structural SL Buffers."
+#property description "Features Forensic Post-SL Recovery Diagnostics & Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -28,7 +28,7 @@ input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (
 input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (% of Balance)
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
-input group "=== Take Profit Fixed Target Levels ($) ==="
+input group "=== Take Profit Target Distances ($) ==="
 input double   InpTP1TargetUSD     = 2.50;             // TP1 Fixed Distance Target ($2.50 = 25 Pips)
 input double   InpTP2TargetUSD     = 5.00;             // TP2 Fixed Distance Target ($5.00 = 50 Pips)
 input double   InpTP3TargetUSD     = 7.50;             // TP3 Fixed Distance Target ($7.50 = 75 Pips)
@@ -37,7 +37,6 @@ input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input double   InpSLBufferATRMult  = 1.5;              // ATR Multiplier for Liquidity Sweep SL Buffer
 input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
@@ -51,7 +50,7 @@ input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
 input color    InpSellColor        = clrCrimson;       // Sell Order Arrow Color
 
 //--- Global Variables & Handles
-int      h_h1_ema21, h_h1_ema50, h_m5_ema21, h_atr14;
+int      h_h1_ema21, h_h1_ema50, h_m5_ema21;
 datetime last_bar_time;
 
 double   initial_balance = 0.0;
@@ -66,9 +65,8 @@ int OnInit()
    h_h1_ema21 = iMA(_Symbol, PERIOD_H1, 21, 0, MODE_EMA, PRICE_CLOSE);
    h_h1_ema50 = iMA(_Symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
    h_m5_ema21 = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
-   h_atr14    = iATR(_Symbol, PERIOD_M5, 14);
 
-   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE || h_atr14 == INVALID_HANDLE)
+   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE)
    {
       Print("[ERROR] Failed to create indicator handles.");
       return(INIT_FAILED);
@@ -79,8 +77,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine v3.70 initialized! Risk: %.1f%% | TP Targets: $%.2f / $%.2f / $%.2f",
-               InpAccountRiskPct, InpTP1TargetUSD, InpTP2TargetUSD, InpTP3TargetUSD);
+   PrintFormat("[INIT] Model 2 Personal Engine v3.80 initialized! Total Risk per Setup: %.1f%%", InpAccountRiskPct);
    return(INIT_SUCCEEDED);
 }
 
@@ -217,7 +214,7 @@ string GetEntryComment(ulong pos_id)
 }
 
 //+------------------------------------------------------------------+
-//| Diagnostic Engine: Analyze Stop Loss Root Causes                 |
+//| Forensic Post-SL Recovery & Diagnostic Analytics                 |
 //+------------------------------------------------------------------+
 void AnalyzeStopLossReasons()
 {
@@ -226,10 +223,11 @@ void AnalyzeStopLossReasons()
    int total_deals = HistoryDealsTotal();
    int total_sl_hits = 0;
 
-   int cat_spread_friction  = 0; // Quick stop-out within 1-2 bars / Spread noise
-   int cat_reversal_whipsaw = 0; // Macro H1 momentum shift / Trend reversal
-   int cat_post_tp_retrace  = 0; // Partial target hit first, then retraced to SL
-   int cat_liquidity_sweep  = 0; // Deep structural sweep past swing level
+   int partial_tp1_hits = 0;  // Hit TP1 first before SL hit remaining ticket
+   int clean_losses = 0;      // Hit SL directly without hitting any TP
+
+   int stop_hunts_recovered = 0; // Bot WAS RIGHT: Price recovered to predicted TP1 after hitting SL!
+   int true_trend_failures  = 0; // Bot WAS WRONG: Price continued moving counter-trend after SL.
 
    for(int i = 0; i < total_deals; i++)
    {
@@ -255,6 +253,8 @@ void AnalyzeStopLossReasons()
 
          datetime entry_time = exit_time;
          double entry_price  = exit_price;
+         long pos_type       = -1;
+         double tp1_target   = 0.0;
 
          for(int j = 0; j < total_deals; j++)
          {
@@ -263,30 +263,65 @@ void AnalyzeStopLossReasons()
             {
                entry_time = (datetime)HistoryDealGetInteger(t_in, DEAL_TIME);
                entry_price = HistoryDealGetDouble(t_in, DEAL_PRICE);
+               pos_type   = HistoryDealGetInteger(t_in, DEAL_TYPE);
                break;
             }
          }
 
-         int duration_sec = (int)(exit_time - entry_time);
-         int duration_bars = duration_sec / 300;
+         tp1_target = (pos_type == DEAL_TYPE_BUY) ? (entry_price + InpTP1TargetUSD) : (entry_price - InpTP1TargetUSD);
 
-         double sl_dist_usd = MathAbs(entry_price - exit_price);
+         // Check if position was a partial winner (other position in same setup hit TP1)
+         bool setup_had_tp1 = false;
+         for(int j = 0; j < total_deals; j++)
+         {
+            ulong t_other = HistoryDealGetTicket(j);
+            if(t_other > 0 && HistoryDealGetInteger(t_other, DEAL_MAGIC) == InpMagicNumber)
+            {
+               datetime t_time = (datetime)HistoryDealGetInteger(t_other, DEAL_TIME);
+               if(MathAbs(t_time - entry_time) <= 15 && HistoryDealGetDouble(t_other, DEAL_PROFIT) > 0)
+               {
+                  setup_had_tp1 = true;
+                  break;
+               }
+            }
+         }
 
-         if(duration_bars <= 2 && sl_dist_usd <= 2.8)
+         if(setup_had_tp1)
          {
-            cat_spread_friction++;
-         }
-         else if(duration_bars > 12)
-         {
-            cat_reversal_whipsaw++;
-         }
-         else if(sl_dist_usd > 5.0)
-         {
-            cat_liquidity_sweep++;
+            partial_tp1_hits++;
          }
          else
          {
-            cat_post_tp_retrace++;
+            clean_losses++;
+
+            // AUDIT POST-SL MARKET RECOVERY (Did price reach TP1 within 12 bars after SL hit?)
+            MqlRates post_rates[];
+            ArraySetAsSeries(post_rates, true);
+            int copied = CopyRates(_Symbol, PERIOD_M5, exit_time, 12, post_rates);
+
+            bool bot_was_right_recovered = false;
+            for(int k = 0; k < copied; k++)
+            {
+               if(pos_type == DEAL_TYPE_BUY && post_rates[k].high >= tp1_target)
+               {
+                  bot_was_right_recovered = true;
+                  break;
+               }
+               if(pos_type == DEAL_TYPE_SELL && post_rates[k].low <= tp1_target)
+               {
+                  bot_was_right_recovered = true;
+                  break;
+               }
+            }
+
+            if(bot_was_right_recovered)
+            {
+               stop_hunts_recovered++;
+            }
+            else
+            {
+               true_trend_failures++;
+            }
          }
       }
    }
@@ -294,17 +329,19 @@ void AnalyzeStopLossReasons()
    if(total_sl_hits == 0) return;
 
    Print("-----------------------------------------------------------------------------------------");
-   Print(" 🔍 STOP LOSS ROOT-CAUSE DIAGNOSTIC ANALYTICS REPORT");
+   Print(" 🔍 FORENSIC POST-SL MARKET RECOVERY DIAGNOSTIC REPORT");
    Print("-----------------------------------------------------------------------------------------");
-   PrintFormat(" TOTAL STOP LOSS EVENTS ANALYZED: %d Tickets", total_sl_hits);
-   PrintFormat(" 1. ⚡ Spread Spike / Tight Noise Stop-Outs : %d Tickets (%.1f%%)",
-               cat_spread_friction, ((double)cat_spread_friction / total_sl_hits) * 100.0);
-   PrintFormat(" 2. 🔄 H1 Trend Reversal / Momentum Shifts  : %d Tickets (%.1f%%)",
-               cat_reversal_whipsaw, ((double)cat_reversal_whipsaw / total_sl_hits) * 100.0);
-   PrintFormat(" 3. 🎯 Retracement / Post-Move Stop-Outs    : %d Tickets (%.1f%%)",
-               cat_post_tp_retrace, ((double)cat_post_tp_retrace / total_sl_hits) * 100.0);
-   PrintFormat(" 4. 🌊 Deep Liquidity Sweep Expansion Stops : %d Tickets (%.1f%%)",
-               cat_liquidity_sweep, ((double)cat_liquidity_sweep / total_sl_hits) * 100.0);
+   PrintFormat(" TOTAL STOP LOSS TICKETS ANALYZED : %d Tickets", total_sl_hits);
+   PrintFormat(" 1. 🎯 PARTIAL WINNERS (Hit TP1 first) : %d Tickets (%.1f%%) [Locked profit before SL!]",
+               partial_tp1_hits, ((double)partial_tp1_hits / total_sl_hits) * 100.0);
+   PrintFormat(" 2. ❌ CLEAN LOSSES (Hit SL directly)   : %d Tickets (%.1f%%)",
+               clean_losses, ((double)clean_losses / total_sl_hits) * 100.0);
+   Print("-----------------------------------------------------------------------------------------");
+   Print(" 📊 AUDIT OF CLEAN LOSSES: DID MARKET MOVE AS BOT PREDICTED AFTER SL?");
+   PrintFormat(" 🏆 STOP HUNTS (Bot WAS RIGHT! Price recovered to TP1 after SL): %d Setups (%.1f%%)",
+               stop_hunts_recovered, (clean_losses > 0) ? ((double)stop_hunts_recovered / clean_losses) * 100.0 : 0.0);
+   PrintFormat(" 🚫 TRUE FAILURES (Bot WAS WRONG! Price ran counter-trend)    : %d Setups (%.1f%%)",
+               true_trend_failures, (clean_losses > 0) ? ((double)true_trend_failures / clean_losses) * 100.0 : 0.0);
    Print("-----------------------------------------------------------------------------------------");
 }
 
@@ -404,7 +441,6 @@ void OnDeinit(const int reason)
    IndicatorRelease(h_h1_ema21);
    IndicatorRelease(h_h1_ema50);
    IndicatorRelease(h_m5_ema21);
-   IndicatorRelease(h_atr14);
    Comment("");
 }
 
@@ -504,14 +540,12 @@ void OnTick()
    if(!h1_bull && !h1_bear) return;
 
    MqlRates m5_rates[];
-   double m5_ema21[], m5_atr14[];
+   double m5_ema21[];
    ArraySetAsSeries(m5_rates, true);
    ArraySetAsSeries(m5_ema21, true);
-   ArraySetAsSeries(m5_atr14, true);
 
    if(CopyRates(_Symbol, PERIOD_M5, 1, 10, m5_rates) < 10 ||
-      CopyBuffer(h_m5_ema21, 0, 1, 10, m5_ema21) < 10 ||
-      CopyBuffer(h_atr14, 0, 1, 2, m5_atr14) < 1) return;
+      CopyBuffer(h_m5_ema21, 0, 1, 10, m5_ema21) < 10) return;
 
    double low_1  = m5_rates[0].low;
    double high_1 = m5_rates[0].high;
@@ -569,7 +603,6 @@ void OnTick()
    }
 
    // 🎯 FIXED FAST TAKE-PROFIT TARGETS ($2.50 / $5.00 / $7.50)
-   // Prevents wider SL buffers from pushing TP targets unnaturally far away!
    double tp1_price = base_buy ? (entry_price + InpTP1TargetUSD) : (entry_price - InpTP1TargetUSD);
    double tp2_price = base_buy ? (entry_price + InpTP2TargetUSD) : (entry_price - InpTP2TargetUSD);
    double tp3_price = base_buy ? (entry_price + InpTP3TargetUSD) : (entry_price - InpTP3TargetUSD);
