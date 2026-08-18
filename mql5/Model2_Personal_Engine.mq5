@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.50"
+#property version   "3.60"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Includes Stop Loss Root-Cause Diagnostic Analytics & Front-Weighted Burst Risk Allocation."
+#property description "Features ATR-Dynamic Liquidity Sweep SL Protection, SL Diagnostics, & Front-Weighted Risk."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -32,6 +32,7 @@ input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
+input double   InpSLBufferATRMult  = 1.5;              // ATR Multiplier for Liquidity Sweep SL Buffer ($1.00 - $2.50)
 input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
@@ -45,7 +46,7 @@ input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
 input color    InpSellColor        = clrCrimson;       // Sell Order Arrow Color
 
 //--- Global Variables & Handles
-int      h_h1_ema21, h_h1_ema50, h_m5_ema21;
+int      h_h1_ema21, h_h1_ema50, h_m5_ema21, h_atr14;
 datetime last_bar_time;
 
 double   initial_balance = 0.0;
@@ -60,8 +61,9 @@ int OnInit()
    h_h1_ema21 = iMA(_Symbol, PERIOD_H1, 21, 0, MODE_EMA, PRICE_CLOSE);
    h_h1_ema50 = iMA(_Symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
    h_m5_ema21 = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
+   h_atr14    = iATR(_Symbol, PERIOD_M5, 14);
 
-   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE)
+   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE || h_atr14 == INVALID_HANDLE)
    {
       Print("[ERROR] Failed to create indicator handles.");
       return(INIT_FAILED);
@@ -72,8 +74,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine initialized! Total Risk per Setup: %.1f%% | Distribution Mode: %s",
-               InpAccountRiskPct, EnumToString(InpRiskDistribution));
+   PrintFormat("[INIT] Model 2 Personal Engine initialized! Risk per Setup: %.1f%% | ATR SL Buffer: %.1fx",
+               InpAccountRiskPct, InpSLBufferATRMult);
    return(INIT_SUCCEEDED);
 }
 
@@ -246,10 +248,8 @@ void AnalyzeStopLossReasons()
          ulong pos_id        = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
          double exit_price   = HistoryDealGetDouble(ticket, DEAL_PRICE);
 
-         // Find matching entry deal
          datetime entry_time = exit_time;
          double entry_price  = exit_price;
-         long deal_type      = -1;
 
          for(int j = 0; j < total_deals; j++)
          {
@@ -258,35 +258,29 @@ void AnalyzeStopLossReasons()
             {
                entry_time = (datetime)HistoryDealGetInteger(t_in, DEAL_TIME);
                entry_price = HistoryDealGetDouble(t_in, DEAL_PRICE);
-               deal_type   = HistoryDealGetInteger(t_in, DEAL_TYPE);
                break;
             }
          }
 
          int duration_sec = (int)(exit_time - entry_time);
-         int duration_bars = duration_sec / 300; // M5 bars count
+         int duration_bars = duration_sec / 300;
 
          double sl_dist_usd = MathAbs(entry_price - exit_price);
 
-         // Category Diagnostic Logic
          if(duration_bars <= 2 && sl_dist_usd <= 2.8)
          {
-            // Rapid stop-out within 10 minutes on tight stop -> Spread Friction / Noise
             cat_spread_friction++;
          }
          else if(duration_bars > 12)
          {
-            // Position held for > 1 hour before stopping out -> Macro Trend Shift / Reversal
             cat_reversal_whipsaw++;
          }
          else if(sl_dist_usd > 5.0)
          {
-            // Stopped out on a wide structural SL distance -> Deep Sweep Expansion
             cat_liquidity_sweep++;
          }
          else
          {
-            // Intermediate retrace stop -> Post-TP / Retracement Stop
             cat_post_tp_retrace++;
          }
       }
@@ -405,6 +399,7 @@ void OnDeinit(const int reason)
    IndicatorRelease(h_h1_ema21);
    IndicatorRelease(h_h1_ema50);
    IndicatorRelease(h_m5_ema21);
+   IndicatorRelease(h_atr14);
    Comment("");
 }
 
@@ -504,12 +499,14 @@ void OnTick()
    if(!h1_bull && !h1_bear) return;
 
    MqlRates m5_rates[];
-   double m5_ema21[];
+   double m5_ema21[], m5_atr14[];
    ArraySetAsSeries(m5_rates, true);
    ArraySetAsSeries(m5_ema21, true);
+   ArraySetAsSeries(m5_atr14, true);
 
    if(CopyRates(_Symbol, PERIOD_M5, 1, 10, m5_rates) < 10 ||
-      CopyBuffer(h_m5_ema21, 0, 1, 10, m5_ema21) < 10) return;
+      CopyBuffer(h_m5_ema21, 0, 1, 10, m5_ema21) < 10 ||
+      CopyBuffer(h_atr14, 0, 1, 2, m5_atr14) < 1) return;
 
    double low_1  = m5_rates[0].low;
    double high_1 = m5_rates[0].high;
@@ -544,14 +541,24 @@ void OnTick()
    ENUM_ORDER_TYPE order_type = base_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
    double entry_price = base_buy ? ask : bid;
 
-   double recent_3_low  = MathMin(m5_rates[0].low, MathMin(m5_rates[1].low, m5_rates[2].low));
-   double recent_3_high = MathMax(m5_rates[0].high, MathMax(m5_rates[1].high, m5_rates[2].high));
+   // 🛡️ DYNAMIC ATR-BUFFERED STRUCTURAL SL CALCULATION
+   // Uses 10-bar structural swing low/high + ATR buffer to protect against deep liquidity sweeps
+   double current_atr_usd = m5_atr14[0];
+   double dynamic_buffer  = MathMax(1.00, current_atr_usd * InpSLBufferATRMult);
+
+   double struct_low  = m5_rates[0].low;
+   double struct_high = m5_rates[0].high;
+   for(int k = 1; k < 10; k++)
+   {
+      if(m5_rates[k].low < struct_low)   struct_low  = m5_rates[k].low;
+      if(m5_rates[k].high > struct_high) struct_high = m5_rates[k].high;
+   }
 
    double sl_price, sl_dist_dollars;
 
    if(base_buy)
    {
-      sl_price = recent_3_low - 0.50;
+      sl_price = struct_low - dynamic_buffer;
       sl_dist_dollars = entry_price - sl_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
@@ -559,7 +566,7 @@ void OnTick()
    }
    else
    {
-      sl_price = recent_3_high + 0.50;
+      sl_price = struct_high + dynamic_buffer;
       sl_dist_dollars = sl_price - entry_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
