@@ -224,10 +224,10 @@ class Model2LiveRunner:
         }])
 
         ml_proba = self.rf_model.predict_proba(feat_df)[0, 1]
-        logger.info(f" Random Forest ML Quality Gate Score: {ml_proba*100:.1f}% (Threshold: >= 50.0%)")
+        logger.info(f" Random Forest ML Quality Gate Score: {ml_proba*100:.1f}% (Threshold: >= 58.0%)")
 
-        if ml_proba < 0.50:
-            logger.info(" Setup Rejected by Random Forest ML Gate.")
+        if ml_proba < 0.58:
+            logger.info(" Setup Rejected by Random Forest ML Gate (< 58.0%).")
             return False
 
         # Personal Engine Trigger Condition (H1 + FVG + Sweep + ML >= 50%)

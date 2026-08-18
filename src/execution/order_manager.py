@@ -113,18 +113,23 @@ class MT5OrderManager:
         magic_number = self.MAGIC_PERSONAL if engine_type.upper() == 'PERSONAL' else self.MAGIC_PROP
         comment = self.COMMENT_PERSONAL if engine_type.upper() == 'PERSONAL' else self.COMMENT_PROP
 
-        # Total 1% risk on $5,000 = $50.00 total risk -> $16.67 per ticket
+        # Front-Weighted Burst Sizing: 50% TP1 / 33.3% TP2 / 16.7% TP3
         account_info = mt5.account_info() if self.connected else None
         current_balance = account_info.balance if account_info else self.account_balance
         total_risk_usd = current_balance * (self.risk_pct / 100.0)
-        ticket_risk_usd = total_risk_usd / 3.0
+        r1_usd = total_risk_usd * 0.50
+        r2_usd = total_risk_usd * (1.0 / 3.0)
+        r3_usd = total_risk_usd * (1.0 / 6.0)
 
         sl_dist = abs(entry_price - sl_price)
-        lot_per_ticket = self.calculate_lot_size(ticket_risk_usd, sl_dist)
+        lot_t1 = self.calculate_lot_size(r1_usd, sl_dist)
+        lot_t2 = self.calculate_lot_size(r2_usd, sl_dist)
+        lot_t3 = self.calculate_lot_size(r3_usd, sl_dist)
+        lot_sizes = [lot_t1, lot_t2, lot_t3]
 
         logger.info(f"[{engine_type} ENGINE] Signal Triggered: {direction} @ ${entry_price:.2f}")
         logger.info(f"   SL: ${sl_price:.2f} (Dist: ${sl_dist:.2f}) | TP1: ${tp1_price:.2f} | TP2: ${tp2_price:.2f} | TP3: ${tp3_price:.2f}")
-        logger.info(f"   Lot Sizing: 3 Tickets x {lot_per_ticket:.2f} Lots (Risk per ticket: ${ticket_risk_usd:.2f}) | Magic: {magic_number}")
+        logger.info(f"   Front-Weighted Lots: TP1={lot_t1:.2f}, TP2={lot_t2:.2f}, TP3={lot_t3:.2f} (Total Risk: ${total_risk_usd:.2f}) | Magic: {magic_number}")
 
         if dry_run:
             logger.info(f"   [DRY-RUN MODE] 3 Tickets logged successfully for {engine_type} engine. No broker order sent.")
@@ -142,7 +147,7 @@ class MT5OrderManager:
         min_stop_dist = (symbol_info.stops_level * point) if (symbol_info and symbol_info.stops_level > 0) else 0.30
 
         success_count = 0
-        for i, tp in enumerate(tp_levels, 1):
+        for i, (tp, vol) in enumerate(zip(tp_levels, lot_sizes), 1):
             tick = mt5.symbol_info_tick(self.symbol)
             live_price = (tick.ask if direction.upper() == 'BUY' else tick.bid) if tick else entry_price
 
@@ -164,7 +169,7 @@ class MT5OrderManager:
             request = {
                 "action": mt5.TRADE_ACTION_DEAL,
                 "symbol": self.symbol,
-                "volume": lot_per_ticket,
+                "volume": vol,
                 "type": order_type,
                 "price": live_price,
                 "sl": round(adjusted_sl, 2),
@@ -177,14 +182,14 @@ class MT5OrderManager:
             }
             result = mt5.order_send(request)
             if result is not None and result.retcode == mt5.TRADE_RETCODE_DONE:
-                logger.info(f"   [SUCCESS] Ticket #{i}/3 Placed! Order Ticket: {result.order} | TP: ${adjusted_tp:.2f}")
+                logger.info(f"   [SUCCESS] Ticket #{i}/3 Placed! Volume: {vol:.2f} Lots | Order Ticket: {result.order} | TP: ${adjusted_tp:.2f}")
                 success_count += 1
                 self.record_trade_csv(
                     order_ticket=result.order,
                     engine_type=engine_type,
                     magic=magic_number,
                     direction=direction,
-                    volume=lot_per_ticket,
+                    volume=vol,
                     entry=live_price,
                     sl=adjusted_sl,
                     tp=adjusted_tp,
