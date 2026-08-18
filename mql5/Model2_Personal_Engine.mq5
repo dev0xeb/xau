@@ -15,7 +15,7 @@ input group "=== Front-Weighted Risk Allocation ==="
 input double   InpTP1RiskPct       = 3.0;              // Ticket 1 (TP1) Risk (% of Balance)
 input double   InpTP2RiskPct       = 2.0;              // Ticket 2 (TP2) Risk (% of Balance)
 input double   InpTP3RiskPct       = 1.0;              // Ticket 3 (TP3) Risk (% of Balance)
-input double   InpFixedLotPerTicket= 0.0;              // Fixed Lot per Ticket (0.0 = Use Risk % / 0.01 = Micro Lots)
+input double   InpFixedLotPerTicket= 0.0;              // Fixed Lot per Ticket (0.0 = Use 3%-2%-1% Risk / Set > 0 for Fixed Lots)
 
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
