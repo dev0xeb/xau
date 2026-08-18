@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.10"
+#property version   "3.20"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, Closed EMA21, and 58% ML Quality Gate."
+#property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, Closed EMA21, and 60% ML Quality Gate."
 #property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
@@ -29,7 +29,7 @@ input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
 input group "=== Machine Learning & Quality Gate ==="
-input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
+input double   InpMLGateThreshold  = 0.60;             // ML Quality Gate Minimum Probability (0.60 = 60.0%)
 
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
@@ -78,7 +78,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine v3.10 initialized! Total Risk: %.1f%% | ML Gate Threshold: %.1f%%",
+   PrintFormat("[INIT] Model 2 Personal Engine v3.20 initialized! Total Risk: %.1f%% | ML Gate Threshold: %.1f%%",
                InpAccountRiskPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
@@ -96,14 +96,12 @@ double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int 
    double atr = atr_buf[0];
    double atr_ratio = atr / 1.50;
 
-   // Heuristic Quality Gate Score mapping calibrated from Random Forest
    double score = 0.50;
 
-   // Trend alignment bonus
    if((is_buy && rsi > 50.0 && rsi < 70.0) || (!is_buy && rsi < 50.0 && rsi > 30.0)) score += 0.08;
    if(atr_ratio >= 0.8 && atr_ratio <= 2.0) score += 0.06;
    if(fvg_pips >= 2.0) score += 0.05;
-   if(hour_utc >= 8 && hour_utc <= 15) score += 0.05; // Peak London/NY Session bonus
+   if(hour_utc >= 8 && hour_utc <= 15) score += 0.05;
 
    return MathMin(0.95, MathMax(0.10, score));
 }
@@ -113,7 +111,7 @@ double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int 
 //+------------------------------------------------------------------+
 void ManageTrailingStops()
 {
-   if(InpTrailingMode == 0) return; // 0 = Fixed SL
+   if(InpTrailingMode == 0) return;
 
    int total = PositionsTotal();
    double entry_price_level = 0.0;
@@ -259,7 +257,7 @@ void GeneratePerformanceAnalytics()
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
    Print("=========================================================================================");
-   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v3.10)");
+   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v3.20)");
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -455,7 +453,7 @@ void OnTick()
       sl_price = entry_price + sl_dist_dollars;
    }
 
-   // 🧠 ML QUALITY GATE CHECK (Threshold: InpMLGateThreshold = 0.58)
+   // 🧠 ML QUALITY GATE CHECK (Threshold: InpMLGateThreshold = 0.60 / 60.0%)
    double fvg_size_pips = base_buy ? bull_fvg_pips : bear_fvg_pips;
    double ml_prob = CalculateMLProbability(base_buy, fvg_size_pips, sl_dist_dollars / 0.10, dt.hour);
 

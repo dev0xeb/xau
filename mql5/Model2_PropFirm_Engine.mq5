@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.10"
+#property version   "3.20"
 #property description "Model 2 Prop Firm Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 58% ML Quality Gate."
+#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 60% ML Quality Gate."
 #property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
@@ -26,7 +26,7 @@ input double                InpMaxOverallDDPct  = 8.0;                  // Hard 
 input double                InpFixedLotPerTicket= 0.0;                  // Fixed Lot per Ticket (0.0 = Use Risk % / Set > 0 for Fixed Lots)
 
 input group "=== Machine Learning & Quality Gate ==="
-input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
+input double   InpMLGateThreshold  = 0.60;             // ML Quality Gate Minimum Probability (0.60 = 60.0%)
 
 input group "=== Custom Ticket Risk % (Used if Mode = Custom) ==="
 input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (% of Balance)
@@ -84,7 +84,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.10 initialized! Max Daily Loss: %.1f%% | ML Gate Threshold: %.1f%%",
+   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.20 initialized! Max Daily Loss: %.1f%% | ML Gate Threshold: %.1f%%",
                InpMaxDailyLossPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
@@ -261,7 +261,7 @@ void GeneratePerformanceAnalytics()
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
    Print("=========================================================================================");
-   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v3.10)");
+   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v3.20)");
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -481,7 +481,7 @@ void OnTick()
       sl_price = entry_price + sl_dist_dollars;
    }
 
-   // 🧠 ML QUALITY GATE CHECK (Threshold: InpMLGateThreshold = 0.58)
+   // 🧠 ML QUALITY GATE CHECK (Threshold: InpMLGateThreshold = 0.60 / 60.0%)
    double fvg_size_pips = base_buy ? bull_fvg_pips : bear_fvg_pips;
    double ml_prob = CalculateMLProbability(base_buy, fvg_size_pips, sl_dist_dollars / 0.10, dt.hour);
 
