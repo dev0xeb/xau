@@ -1,0 +1,6 @@
+Strategy Name,Sample Window,Executed Trades,Win Rate (%),Net Profit ($),Profit Factor,Max Drawdown (%),Execution Model,Verdict
+1. Session Liquidity Sweep & Reversal,3.5 Years (2023-2026),928,34.5%,+4738.19,1.08,-44.61%,Realistic (20pt Spread + $0.05 Slip),ACCEPTED
+2. London/NY Overlap 15m ORB Breakout,3.5 Years (2023-2026),262,33.2%,-1083.28,0.93,-25.44%,Realistic (20pt Spread + $0.05 Slip),REJECTED
+3. Daily Session Open Bias Trend Follower,3.5 Years (2023-2026),827,37.6%,+19358.52,1.40,-23.75%,Realistic (20pt Spread + $0.05 Slip),RECOMMENDED
+4. 5m Displacement Candle Retrace Engine,3.5 Years (2023-2026),835,41.2%,+2173.82,1.05,-22.15%,Realistic (20pt Spread + $0.05 Slip),ACCEPTED
+5. Adaptive Market State Hybrid Engine,3.5 Years (2023-2026),894,35.8%,+12495.21,1.23,-17.95%,Realistic (20pt Spread + $0.05 Slip),RECOMMENDED

@@ -1,0 +1,5 @@
+Session Name,Time Window (UTC),Average Range ($),Median Range ($),Average 1m Volatility ($),Dominant Market State
+Asian Session,00:00 - 07:00 UTC,58.71,57.30,2.17,Liquidity Range Accumulation
+London Session,07:00 - 12:00 UTC,35.74,38.89,1.87,Initial Directional Positioning
+London/NY Overlap,12:00 - 16:00 UTC,55.64,46.44,3.23,Peak Institutional Expansion & Sweeps
+NY Session,12:00 - 21:00 UTC,59.84,52.22,2.37,Trend Continuation / Late Consolidation
