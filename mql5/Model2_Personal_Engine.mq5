@@ -5,23 +5,24 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "2.50"
+#property version   "3.10"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Evaluates H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Uses 3-Burst Multi-Ticket Scaling System with Dynamic Trailing SL on TP1 or TP2 Hit."
+#property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
+#property description "Uses 3-Burst Multi-Ticket Scaling System with Mode 3 Trailing SL (TP1 Price AFTER TP2 Hit)."
 
 //--- Input Parameters
 input group "=== Risk & Account Management ==="
-input double   InpAccountRiskPct   = 1.0;              // Total Account Risk per Setup (%)
-input double   InpMinSLPips        = 15.0;             // Minimum SL Distance (Pips / $0.10)
-input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $0.10)
+input double   InpAccountRiskPct   = 1.0;              // Account Risk per Setup (% - used if Fixed Lot is 0)
+input double   InpFixedLotPerTicket= 0.01;             // Fixed Lot per Ticket (0.01 = 0.03 Lots Total / Set 0.0 for Risk %)
+input double   InpMinSLPips        = 15.0;             // Minimum SL Distance (Pips / $0.15)
+input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $0.80)
 input int      InpTrailingMode     = 3;                // Trailing Stop Mode (0=Fixed, 1=BE on TP1, 2=TP1 on TP1, 3=TP1 on TP2, 4=BE on TP2)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
 input group "=== Strategy Parameters ==="
 input double   InpFVGMinPips       = 1.5;              // Minimum Fair Value Gap Size ($0.15)
-input int      InpStartHourUTC     = 6;                // Killzone Start Hour (UTC)
-input int      InpEndHourUTC       = 17;               // Killzone End Hour (UTC)
+input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC)
+input int      InpEndHourUTC       = 17;               // Session End Hour (UTC)
 
 input group "=== Visual Playback Settings ==="
 input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
@@ -55,7 +56,7 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   Print("[INIT] Model 2 Personal Engine initialized! Trailing Mode: ", InpTrailingMode);
+   Print("[INIT] Model 2 Personal Engine initialized! Trailing Mode: ", InpTrailingMode, " | Lot per Ticket: ", InpFixedLotPerTicket);
    return(INIT_SUCCEEDED);
 }
 
@@ -88,10 +89,10 @@ void ManageTrailingStops()
       }
    }
 
-   // Modes 1 & 2: Trail on TP1 hit (when 1 or 2 tickets remain and TP1 closed)
+   // Modes 1 & 2: Trail on TP1 hit
    if((InpTrailingMode == 1 || InpTrailingMode == 2) && (my_positions > 0 && my_positions < 3 && !tp1_open))
    {
-      double sl_dist_usd = 2.0; // Default estimate
+      double sl_dist_usd = 2.0;
       double new_sl = 0.0;
 
       if(pos_type == POSITION_TYPE_BUY)
@@ -129,10 +130,10 @@ void ManageTrailingStops()
       }
    }
 
-   // Modes 3 & 4: Trail ON TP2 HIT (when only 1 ticket remains - Ticket 3, and both TP1 and TP2 have closed)
+   // Modes 3 & 4: Trail ON TP2 HIT (Ticket 3 only)
    if((InpTrailingMode == 3 || InpTrailingMode == 4) && (my_positions == 1 && !tp1_open && !tp2_open))
    {
-      double sl_dist_usd = 2.5; // Estimated 1.0x SL distance
+      double sl_dist_usd = 2.5;
       double new_sl = 0.0;
 
       if(pos_type == POSITION_TYPE_BUY)
@@ -216,7 +217,7 @@ void GeneratePerformanceAnalytics()
       if(magic != InpMagicNumber) continue;
 
       long entry_type = HistoryDealGetInteger(ticket, DEAL_ENTRY);
-      if(entry_type != DEAL_ENTRY_OUT) continue; // Exit deals only
+      if(entry_type != DEAL_ENTRY_OUT) continue;
 
       double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT) + 
                       HistoryDealGetDouble(ticket, DEAL_COMMISSION) + 
@@ -292,6 +293,8 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 double CalculateTicketLotSize(double ticket_risk_usd, double sl_distance_dollars)
 {
+   if(InpFixedLotPerTicket > 0.0) return InpFixedLotPerTicket;
+
    if(sl_distance_dollars <= 0) return 0.01;
    
    double contract_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
