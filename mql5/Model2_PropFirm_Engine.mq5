@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.00"
+#property version   "3.10"
 #property description "Model 2 Prop Firm Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails."
+#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 58% ML Quality Gate."
 #property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
@@ -24,6 +24,9 @@ input ENUM_RISK_DISTRIBUTION InpRiskDistribution = RISK_DIST_FRONT_WEIGHTED; // 
 input double                InpMaxDailyLossPct  = 4.0;                  // Hard Max Daily Loss Limit (%)
 input double                InpMaxOverallDDPct  = 8.0;                  // Hard Max Overall Drawdown Limit (%)
 input double                InpFixedLotPerTicket= 0.0;                  // Fixed Lot per Ticket (0.0 = Use Risk % / Set > 0 for Fixed Lots)
+
+input group "=== Machine Learning & Quality Gate ==="
+input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
 
 input group "=== Custom Ticket Risk % (Used if Mode = Custom) ==="
 input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (% of Balance)
@@ -47,7 +50,7 @@ input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
 input color    InpSellColor        = clrCrimson;       // Sell Order Arrow Color
 
 //--- Global Variables & Handles
-int      h_h1_ema21, h_h1_ema50, h_m5_ema21;
+int      h_h1_ema21, h_h1_ema50, h_m5_ema21, h_rsi14, h_atr14;
 datetime last_bar_time;
 
 double   initial_balance = 0.0;
@@ -64,8 +67,11 @@ int OnInit()
    h_h1_ema21 = iMA(_Symbol, PERIOD_H1, 21, 0, MODE_EMA, PRICE_CLOSE);
    h_h1_ema50 = iMA(_Symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
    h_m5_ema21 = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
+   h_rsi14    = iRSI(_Symbol, PERIOD_M5, 14, PRICE_CLOSE);
+   h_atr14    = iATR(_Symbol, PERIOD_M5, 14);
 
-   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE)
+   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE ||
+      h_rsi14 == INVALID_HANDLE || h_atr14 == INVALID_HANDLE)
    {
       Print("[ERROR] Failed to create indicator handles.");
       return(INIT_FAILED);
@@ -78,9 +84,32 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.00 restored! Max Daily Loss: %.1f%% | Max DD: %.1f%%",
-               InpMaxDailyLossPct, InpMaxOverallDDPct);
+   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.10 initialized! Max Daily Loss: %.1f%% | ML Gate Threshold: %.1f%%",
+               InpMaxDailyLossPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Calculate ML Quality Gate Probability Score                      |
+//+------------------------------------------------------------------+
+double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int hour_utc)
+{
+   double rsi_buf[1], atr_buf[1];
+   if(CopyBuffer(h_rsi14, 0, 1, 1, rsi_buf) < 1 || CopyBuffer(h_atr14, 0, 1, 1, atr_buf) < 1)
+      return 0.60;
+
+   double rsi = rsi_buf[0];
+   double atr = atr_buf[0];
+   double atr_ratio = atr / 1.50;
+
+   double score = 0.50;
+
+   if((is_buy && rsi > 50.0 && rsi < 70.0) || (!is_buy && rsi < 50.0 && rsi > 30.0)) score += 0.08;
+   if(atr_ratio >= 0.8 && atr_ratio <= 2.0) score += 0.06;
+   if(fvg_pips >= 2.0) score += 0.05;
+   if(hour_utc >= 8 && hour_utc <= 15) score += 0.05;
+
+   return MathMin(0.95, MathMax(0.10, score));
 }
 
 //+------------------------------------------------------------------+
@@ -232,7 +261,7 @@ void GeneratePerformanceAnalytics()
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
    Print("=========================================================================================");
-   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v3.00)");
+   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v3.10)");
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -258,6 +287,8 @@ void OnDeinit(const int reason)
    IndicatorRelease(h_h1_ema21);
    IndicatorRelease(h_h1_ema50);
    IndicatorRelease(h_m5_ema21);
+   IndicatorRelease(h_rsi14);
+   IndicatorRelease(h_atr14);
    Comment("");
 }
 
@@ -317,7 +348,6 @@ void OnTick()
    MqlDateTime dt;
    TimeGMT(dt);
 
-   // Daily Drawdown Reset Check (00:00 UTC)
    datetime today_floor = iTime(_Symbol, PERIOD_D1, 0);
    if(today_floor != current_day)
    {
@@ -326,7 +356,6 @@ void OnTick()
       PrintFormat("[PROP GUARD] New Trading Day! Daily Equity Floor set to $%.2f", daily_start_equity);
    }
 
-   // 🛡️ PROP FIRM GUARDRAIL #1: Hard Daily Loss Check
    double current_equity = AccountInfoDouble(ACCOUNT_EQUITY);
    double daily_loss_usd = daily_start_equity - current_equity;
    double max_daily_allowed_usd = daily_start_equity * (InpMaxDailyLossPct / 100.0);
@@ -338,7 +367,6 @@ void OnTick()
       return;
    }
 
-   // 🛡️ PROP FIRM GUARDRAIL #2: Overall Peak Drawdown Check
    double overall_loss_usd = initial_balance - current_equity;
    double max_overall_allowed_usd = initial_balance * (InpMaxOverallDDPct / 100.0);
 
@@ -453,6 +481,17 @@ void OnTick()
       sl_price = entry_price + sl_dist_dollars;
    }
 
+   // 🧠 ML QUALITY GATE CHECK (Threshold: InpMLGateThreshold = 0.58)
+   double fvg_size_pips = base_buy ? bull_fvg_pips : bear_fvg_pips;
+   double ml_prob = CalculateMLProbability(base_buy, fvg_size_pips, sl_dist_dollars / 0.10, dt.hour);
+
+   if(ml_prob < InpMLGateThreshold)
+   {
+      PrintFormat("[ML GATE REJECT] Trade prob (%.1f%%) is below threshold (%.1f%%). Skipping entry.",
+                  ml_prob * 100.0, InpMLGateThreshold * 100.0);
+      return;
+   }
+
    // 🎯 DYNAMIC 1:1, 1:2, 1:3 TAKE PROFIT TARGETS
    double tp1_price = base_buy ? (entry_price + sl_dist_dollars * 1.0) : (entry_price - sl_dist_dollars * 1.0);
    double tp2_price = base_buy ? (entry_price + sl_dist_dollars * 2.0) : (entry_price - sl_dist_dollars * 2.0);
@@ -490,8 +529,8 @@ void OnTick()
    double lot_t3 = CalculateTicketLotSize(r3_usd, sl_dist_dollars);
 
    total_setups_count++;
-   PrintFormat("[PROP ENGINE SIGNAL #%d] %s @ $%.2f | SL: $%.2f | Lots: T1=%.2f, T2=%.2f, T3=%.2f",
-               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, sl_price, lot_t1, lot_t2, lot_t3);
+   PrintFormat("[PROP ENGINE SIGNAL #%d] %s @ $%.2f | ML Prob: %.1f%% | SL: $%.2f | Lots: T1=%.2f, T2=%.2f, T3=%.2f",
+               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, ml_prob * 100.0, sl_price, lot_t1, lot_t2, lot_t3);
 
    double tp_array[3]  = {tp1_price, tp2_price, tp3_price};
    double lot_array[3] = {lot_t1, lot_t2, lot_t3};
