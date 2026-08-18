@@ -5,15 +5,19 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.20"
+#property version   "3.30"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
 #property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, and Closed EMA21 Confirmation."
-#property description "Includes Spread Expansion Guardrail (Max 3.0 Pips) & Minimum 25-Pip Structural Stop Floor."
+#property description "Includes Front-Weighted Burst Risk Allocation (3% TP1 / 2% TP2 / 1% TP3) & Spread Expansion Guardrail."
 
 //--- Input Parameters
-input group "=== Risk & Account Management ==="
-input double   InpAccountRiskPct   = 1.0;              // Account Risk per Setup (% - used if Fixed Lot is 0)
-input double   InpFixedLotPerTicket= 0.01;             // Fixed Lot per Ticket (0.01 = 0.03 Lots Total / Set 0.0 for Risk %)
+input group "=== Front-Weighted Risk Allocation ==="
+input double   InpTP1RiskPct       = 3.0;              // Ticket 1 (TP1) Risk (% of Balance)
+input double   InpTP2RiskPct       = 2.0;              // Ticket 2 (TP2) Risk (% of Balance)
+input double   InpTP3RiskPct       = 1.0;              // Ticket 3 (TP3) Risk (% of Balance)
+input double   InpFixedLotPerTicket= 0.0;              // Fixed Lot per Ticket (0.0 = Use Risk % / 0.01 = Micro Lots)
+
+input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
@@ -57,7 +61,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   Print("[INIT] Model 2 Personal Engine (Spread-Guarded) initialized! Max Spread: ", InpMaxSpreadPips, " pips | Min SL: ", InpMinSLPips, " pips");
+   PrintFormat("[INIT] Model 2 Personal Engine (Front-Weighted 3%%-2%%-1%%) initialized! Risk: TP1=%.1f%%, TP2=%.1f%%, TP3=%.1f%%",
+               InpTP1RiskPct, InpTP2RiskPct, InpTP3RiskPct);
    return(INIT_SUCCEEDED);
 }
 
@@ -290,7 +295,7 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| Calculate Lot Size per Ticket                                    |
+//| Calculate Lot Size per Specific Ticket                           |
 //+------------------------------------------------------------------+
 double CalculateTicketLotSize(double ticket_risk_usd, double sl_distance_dollars)
 {
@@ -452,16 +457,22 @@ void OnTick()
    double tp3_price = base_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
 
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double total_risk_usd = balance * (InpAccountRiskPct / 100.0);
-   double ticket_risk_usd = total_risk_usd / 3.0;
+   
+   // Asymmetric Risk USD for each ticket
+   double r1_usd = balance * (InpTP1RiskPct / 100.0);
+   double r2_usd = balance * (InpTP2RiskPct / 100.0);
+   double r3_usd = balance * (InpTP3RiskPct / 100.0);
 
-   double lot_per_ticket = CalculateTicketLotSize(ticket_risk_usd, sl_dist_dollars);
+   double lot_t1 = CalculateTicketLotSize(r1_usd, sl_dist_dollars);
+   double lot_t2 = CalculateTicketLotSize(r2_usd, sl_dist_dollars);
+   double lot_t3 = CalculateTicketLotSize(r3_usd, sl_dist_dollars);
 
    total_setups_count++;
-   PrintFormat("[PERSONAL ENGINE SIGNAL #%d] %s @ $%.2f | SL: $%.2f | TP1: $%.2f | TP2: $%.2f | TP3: $%.2f | Lot: %.2f per ticket",
-               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, sl_price, tp1_price, tp2_price, tp3_price, lot_per_ticket);
+   PrintFormat("[PERSONAL ENGINE SIGNAL #%d] %s @ $%.2f | SL: $%.2f | Lots: T1=%.2f, T2=%.2f, T3=%.2f",
+               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, sl_price, lot_t1, lot_t2, lot_t3);
 
-   double tp_array[3] = {tp1_price, tp2_price, tp3_price};
+   double tp_array[3]  = {tp1_price, tp2_price, tp3_price};
+   double lot_array[3] = {lot_t1, lot_t2, lot_t3};
 
    for(int i = 0; i < 3; i++)
    {
@@ -470,7 +481,7 @@ void OnTick()
 
       request.action       = TRADE_ACTION_DEAL;
       request.symbol       = _Symbol;
-      request.volume       = lot_per_ticket;
+      request.volume       = lot_array[i];
       request.type         = order_type;
       request.price        = entry_price;
       request.sl           = sl_price;
@@ -488,7 +499,7 @@ void OnTick()
       else
       {
          total_tickets_count++;
-         PrintFormat("[SUCCESS] Ticket #%d placed! Ticket: %d | TP: $%.2f", i + 1, result.order, tp_array[i]);
+         PrintFormat("[SUCCESS] Ticket #%d placed! Lot: %.2f | TP: $%.2f", i + 1, lot_array[i], tp_array[i]);
       }
    }
 }
