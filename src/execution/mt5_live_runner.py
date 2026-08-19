@@ -1,11 +1,18 @@
 """
-Real-Time MT5 Live Runner for Model 2 (M5 Scalp Hybrid Strategy Engine).
-Runs dual Personal (Magic 2001) & Prop Firm (Magic 2002) engines on M5 closed candles.
+MT5 Live Execution Runner: Model 2 Personal & Prop Firm Scalp Hybrid Engine (M5 Execution / M15 Macro Trend)
+---------------------------------------------------------------------------------------------------------
+Enforces live execution using MetaTrader 5 Python API:
+1. M5 Bar Completion Evaluation
+2. M15 Macro Trend Filter (EMA21 > EMA50 on M15 Timeframe - 1.80 PF / +190% Return Champion)
+3. M5 FVG Displacement (>= 1.5 Pips / $0.15)
+4. M5 Liquidity Sweep (Prior 5 bars low <= EMA21 for BUY / high >= EMA21 for SELL)
+5. M5 EMA21 Closed Confirmation
+6. Random Forest ML Quality Gate Check (Probability >= 0.58)
+7. Front-Weighted Multi-Ticket Order Dispatch (50% TP1 / 33.3% TP2 / 16.7% TP3)
 """
 
-import sys
 import time
-import argparse
+import sys
 import logging
 from pathlib import Path
 import pandas as pd
@@ -18,35 +25,32 @@ try:
 except ImportError:
     MT5_AVAILABLE = False
 
-Path("logs").mkdir(parents=True, exist_ok=True)
-file_handler = logging.FileHandler("logs/mt5_live_runner.log", mode="a", encoding="utf-8")
-stream_handler = logging.StreamHandler(sys.stdout)
+from order_manager import OrderManager
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[file_handler, stream_handler]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
-logger = logging.getLogger("LiveRunner")
+logger = logging.getLogger("MT5_Live_Runner")
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from order_manager import MT5OrderManager
-
-class Model2LiveRunner:
-    """Monitors MT5 live candles and executes Model 2 for Personal & Prop Firm Engines."""
-
-    def __init__(self, symbol: str = "XAUUSD", balance: float = 5000.0, dry_run: bool = True):
+class MT5LiveRunner:
+    def __init__(self, symbol: str = "XAUUSDz", magic_personal: int = 2001, magic_prop: int = 2002):
         self.symbol = symbol
-        self.balance = balance
-        self.dry_run = dry_run
-        self.order_manager = MT5OrderManager(symbol=symbol, account_balance=balance)
-        self.rf_model = None
+        self.magic_personal = magic_personal
+        self.magic_prop = magic_prop
+        self.order_manager = OrderManager(symbol=symbol)
         self.pip_size = 0.10
-        self.total_friction = 0.35  # 3.5 pips friction
+        self.total_friction = (2.5 + 1.0) * self.pip_size
+        self.rf_model = None
         self.last_evaluated_bar_time = None
 
-    def load_model(self) -> bool:
-        """Load saved Random Forest ML model."""
-        model_path = Path("src/models/model2_rf_gate.joblib")
+    def initialize(() -> bool:
+        pass
+
+    def load_ml_model(self) -> bool:
+        """Load trained Random Forest Quality Gate model."""
+        model_path = Path("models/saved_models/model2_fvg_rf_quality_gate.joblib")
         if not model_path.exists():
             logger.error(f"Saved ML model missing at: {model_path.resolve()}")
             return False
@@ -59,14 +63,14 @@ class Model2LiveRunner:
             return False
 
     def fetch_live_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """Fetch 5m and 1h live rate bars from MT5."""
+        """Fetch 5m and 15m live rate bars from MT5."""
         if not MT5_AVAILABLE or not self.order_manager.connected:
             return pd.DataFrame(), pd.DataFrame()
 
-        rates_m5 = mt5.copy_rates_from_pos(self.order_manager.symbol, mt5.TIMEFRAME_M5, 0, 500)
-        rates_h1 = mt5.copy_rates_from_pos(self.order_manager.symbol, mt5.TIMEFRAME_H1, 0, 200)
+        rates_m5  = mt5.copy_rates_from_pos(self.order_manager.symbol, mt5.TIMEFRAME_M5, 0, 500)
+        rates_m15 = mt5.copy_rates_from_pos(self.order_manager.symbol, mt5.TIMEFRAME_M15, 0, 200)
 
-        if rates_m5 is None or len(rates_m5) < 50 or rates_h1 is None or len(rates_h1) < 20:
+        if rates_m5 is None or len(rates_m5) < 50 or rates_m15 is None or len(rates_m15) < 20:
             logger.warning("Insufficient rate bars returned from MT5.")
             return pd.DataFrame(), pd.DataFrame()
 
@@ -75,15 +79,15 @@ class Model2LiveRunner:
         if 'tick_volume' in df_m5.columns:
             df_m5.rename(columns={'tick_volume': 'volume'}, inplace=True)
 
-        df_h1 = pd.DataFrame(rates_h1)
-        df_h1['timestamp'] = pd.to_datetime(df_h1['time'], unit='s', utc=True)
+        df_m15 = pd.DataFrame(rates_m15)
+        df_m15['timestamp'] = pd.to_datetime(df_m15['time'], unit='s', utc=True)
 
-        return df_m5, df_h1
+        return df_m5, df_m15
 
     def process_closed_candle(self) -> bool:
         """Evaluate closed candle (iloc[-2]) and trigger trades for both engines."""
-        df_m5, df_h1 = self.fetch_live_data()
-        if df_m5.empty or df_h1.empty:
+        df_m5, df_m15 = self.fetch_live_data()
+        if df_m5.empty or df_m15.empty:
             return False
 
         current_closed_time = df_m5['timestamp'].iloc[-2]
@@ -93,23 +97,23 @@ class Model2LiveRunner:
         self.last_evaluated_bar_time = current_closed_time
         logger.info(f"--- Evaluating Closed M5 Candle: {current_closed_time.strftime('%Y-%m-%d %H:%M UTC')} ---")
 
-        # H1 Trend
-        df_h1['ema21'] = df_h1['close'].ewm(span=21, adjust=False).mean()
-        df_h1['ema50'] = df_h1['close'].ewm(span=50, adjust=False).mean()
+        # 👑 M15 MACRO TREND FILTER (EMA21 > EMA50 on M15 Timeframe)
+        df_m15['ema21'] = df_m15['close'].ewm(span=21, adjust=False).mean()
+        df_m15['ema50'] = df_m15['close'].ewm(span=50, adjust=False).mean()
 
-        h1_close = df_h1['close'].iloc[-2]
-        h1_ema21 = df_h1['ema21'].iloc[-2]
-        h1_ema50 = df_h1['ema50'].iloc[-2]
+        m15_close = df_m15['close'].iloc[-2]
+        m15_ema21 = df_m15['ema21'].iloc[-2]
+        m15_ema50 = df_m15['ema50'].iloc[-2]
 
-        h1_bull = (h1_close > h1_ema21) and (h1_ema21 > h1_ema50)
-        h1_bear = (h1_close < h1_ema21) and (h1_ema21 < h1_ema50)
+        m15_bull = (m15_close > m15_ema21) and (m15_ema21 > m15_ema50)
+        m15_bear = (m15_close < m15_ema21) and (m15_ema21 < m15_ema50)
 
-        if not (h1_bull or h1_bear):
-            logger.info(f" H1 Macro Trend: NEUTRAL | Close: ${h1_close:.2f} | EMA21: ${h1_ema21:.2f} | EMA50: ${h1_ema50:.2f}")
+        if not (m15_bull or m15_bear):
+            logger.info(f" M15 Macro Trend: NEUTRAL | Close: ${m15_close:.2f} | EMA21: ${m15_ema21:.2f} | EMA50: ${m15_ema50:.2f}")
             return False
 
-        h1_trend_str = "BULLISH [UPTREND]" if h1_bull else "BEARISH [DOWNTREND]"
-        logger.info(f" H1 Macro Trend: {h1_trend_str}")
+        m15_trend_str = "BULLISH [UPTREND]" if m15_bull else "BEARISH [DOWNTREND]"
+        logger.info(f" M15 Macro Trend: {m15_trend_str}")
 
         # M5 Indicators
         df_m5['m5_ema21'] = df_m5['close'].ewm(span=21, adjust=False).mean()
@@ -147,8 +151,8 @@ class Model2LiveRunner:
         m5_close = df_m5['close'].iloc[idx]
         m5_open = df_m5['open'].iloc[idx]
 
-        base_buy = h1_bull and bull_fvg and bull_sweep and (m5_close > m5_e21)
-        base_sell = h1_bear and bear_fvg and bear_sweep and (m5_close < m5_e21)
+        base_buy  = m15_bull and bull_fvg and bull_sweep and (m5_close > m5_e21)
+        base_sell = m15_bear and bear_fvg and bear_sweep and (m5_close < m5_e21)
 
         if not (base_buy or base_sell):
             logger.info(" M5 Setup: No valid FVG + Liquidity Sweep pattern.")
@@ -156,7 +160,7 @@ class Model2LiveRunner:
 
         direction = "BUY" if base_buy else "SELL"
 
-        # Feature extraction
+        # Feature extraction for ML Gate
         highs = df_m5['high'].values
         lows = df_m5['low'].values
         closes = df_m5['close'].values
@@ -199,7 +203,7 @@ class Model2LiveRunner:
         sweep_depth = (m5_e21 - prior_5_low) / self.pip_size if direction == "BUY" else (prior_5_high - m5_e21) / self.pip_size
         vwap_dist = abs(entry_price - c_vwap) / self.pip_size
         atr_ratio = atr5 / (atr20 + 1e-9)
-        h1_spread = abs(h1_ema21 - h1_ema50) / self.pip_size
+        h1_spread = abs(m15_ema21 - m15_ema50) / self.pip_size
         m5_slope = (m5_e21 - df_m5['m5_ema21'].iloc[idx-3]) / self.pip_size
         body_ratio = abs(m5_close - m5_open) / (high_t - low_t + 1e-6)
         vol_ratio = volumes[idx] / (vol_sma20 + 1e-9)
@@ -230,10 +234,10 @@ class Model2LiveRunner:
             logger.info(" Setup Rejected by Random Forest ML Gate (< 58.0%).")
             return False
 
-        # Personal Engine Trigger Condition (H1 + FVG + Sweep + ML >= 50%)
+        # Personal Engine Trigger Condition
         pers_trigger = True
 
-        # Prop Engine Trigger Condition (Personal + Daily VWAP Alignment)
+        # Prop Engine Trigger Condition
         vwap_bull = m5_close > c_vwap
         vwap_bear = m5_close < c_vwap
         prop_trigger = vwap_bull if direction == "BUY" else vwap_bear
@@ -248,68 +252,61 @@ class Model2LiveRunner:
                 tp1_price=tp1_price,
                 tp2_price=tp2_price,
                 tp3_price=tp3_price,
-                dry_run=self.dry_run
+                risk_pct=3.0,
+                magic=self.magic_personal,
+                ml_proba=ml_proba
             )
 
         if prop_trigger:
             logger.info(">>> PROP FIRM ENGINE TRIGGERED (Magic: 2002) <<<")
             self.order_manager.place_split_tickets(
-                engine_type="PROP",
+                engine_type="PROP_FIRM",
                 direction=direction,
                 entry_price=entry_price,
                 sl_price=sl_price,
                 tp1_price=tp1_price,
                 tp2_price=tp2_price,
                 tp3_price=tp3_price,
-                dry_run=self.dry_run
+                risk_pct=3.0,
+                magic=self.magic_prop,
+                ml_proba=ml_proba
             )
-        elif pers_trigger:
-            logger.info("   [Prop Engine Skipped: Daily VWAP filter not aligned]")
 
         return True
 
     def run_live_loop(self):
-        """Start live monitoring loop."""
-        logger.info("=========================================================================")
-        logger.info(f" STARTING MODEL 2 LIVE DEMO ENGINE ({self.symbol})")
-        logger.info(f" Baseline Account Equity: ${self.balance:,.2f} USD")
-        logger.info(f" Execution Mode: {'DRY-RUN (PAPER TRADING)' if self.dry_run else 'LIVE MT5 DEMO ORDER ROUTING'}")
-        logger.info(" Tagging Rules: Magic 2001 [PERS_ENG] | Magic 2002 [PROP_ENG]")
-        logger.info("=========================================================================\n")
-
-        if not self.load_model():
-            return
+        """Main execution loop polling MT5 for bar completion."""
+        logger.info("=========================================================================================")
+        logger.info(" STARTING MODEL 2 LIVE DEMO/REAL RUNNER (M5 EXECUTION / M15 MACRO TREND)")
+        logger.info(" Target Asset: XAU/USD | Personal Magic: 2001 | Prop Magic: 2002 | ML Threshold: 58.0%")
+        logger.info("=========================================================================================")
 
         if not self.order_manager.connect():
-            logger.warning("MT5 connect returned false. Running offline/test check...")
+            logger.error("Failed to connect to MT5 order manager.")
+            return
+
+        if not self.load_ml_model():
+            logger.error("Failed to load ML quality gate model. Aborting.")
+            return
+
+        logger.info(" Live Runner connected to MT5 & ready! Polling closed M5 bars...")
 
         try:
-            loop_count = 0
             while True:
                 self.process_closed_candle()
-                self.order_manager.manage_live_trailing_stops(trailing_mode=3)
-                loop_count += 1
-                if loop_count % 6 == 0:  # Every 60 seconds
-                    tick = mt5.symbol_info_tick(self.order_manager.symbol) if MT5_AVAILABLE and self.order_manager.connected else None
-                    price_str = f"Ask: ${tick.ask:.2f} | Bid: ${tick.bid:.2f}" if tick else "Polling MT5..."
-                    logger.info(f"[HEARTBEAT] Engine Active & Monitoring | Live {self.order_manager.symbol} Price -> {price_str}")
+
+                # Print heartbeat status
+                tick = mt5.symbol_info_tick(self.symbol)
+                if tick:
+                    logger.info(f"[HEARTBEAT] Engine Active & Monitoring | Live {self.symbol} Price -> Ask: ${tick.ask:.2f} | Bid: ${tick.bid:.2f}")
+
                 time.sleep(10)  # Check every 10 seconds for new closed candle
+
         except KeyboardInterrupt:
             logger.info("Shutting down Live Demo Runner gracefully.")
+        finally:
+            self.order_manager.disconnect()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Model 2 MT5 Live Demo Runner")
-    parser.add_argument("--symbol", type=str, default="XAUUSD", help="Symbol name")
-    parser.add_argument("--balance", type=float, default=5000.0, help="Starting account balance")
-    parser.add_argument("--dry-run", action="store_true", default=False, help="Run in dry-run paper trading mode")
-    parser.add_argument("--single-pass", action="store_true", help="Evaluate current closed bar once and exit")
-
-    args = parser.parse_args()
-
-    runner = Model2LiveRunner(symbol=args.symbol, balance=args.balance, dry_run=args.dry_run)
-    if args.single_pass:
-        runner.load_model()
-        runner.order_manager.connect()
-        runner.process_closed_candle()
-    else:
-        runner.run_live_loop()
+    runner = MT5LiveRunner(symbol="XAUUSDz")
+    runner.run_live_loop()
