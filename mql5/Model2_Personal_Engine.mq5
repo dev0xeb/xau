@@ -5,22 +5,16 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "6.00"
+#property version   "3.15"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Enforces H1 Macro Trend, M5 FVG Displacement, Sweep Rejection Confirmation, and 58% ML Quality Gate."
-#property description "Features $1.00 SL Liquidity Buffer to Eliminate Stop Hunts & Front-Weighted Risk Allocation."
+#property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, Closed EMA21, and 58% ML Quality Gate."
+#property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
 {
    RISK_DIST_EQUAL         = 0, // Equal Split (33.3% TP1 / 33.3% TP2 / 33.3% TP3)
    RISK_DIST_FRONT_WEIGHTED= 1, // Front-Weighted (50% TP1 / 33.3% TP2 / 16.7% TP3) [Recommended]
    RISK_DIST_CUSTOM        = 2  // Custom Per-Ticket Risk (Use InpTP1RiskPct, InpTP2RiskPct, InpTP3RiskPct)
-};
-
-enum ENUM_TP_MODE
-{
-   TP_MODE_MATHEMATICAL    = 0, // Mathematical R:R Multiples (1.0x / 2.0x / 3.0x SL) [Highest Edge]
-   TP_MODE_STRUCTURAL      = 1  // Structural Proven Targets (10-Bar / 20-Bar / 40-Bar Swing Extremes)
 };
 
 //--- Input Parameters
@@ -33,13 +27,6 @@ input group "=== Custom Ticket Risk % (Used if Mode = Custom) ==="
 input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (% of Balance)
 input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (% of Balance)
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
-
-input group "=== Take Profit Target Selection ==="
-input ENUM_TP_MODE InpTPMode       = TP_MODE_MATHEMATICAL; // Take Profit Mode (Mathematical R:R vs Structural)
-
-input group "=== Anti-Stop Hunt Guardrails ==="
-input double   InpSLBufferPips          = 10.0;             // Stop Loss Liquidity Buffer (Pips / $1.00 - Prevents Stop Hunts) [Recommended]
-input bool     InpRequireSweepRejection = true;             // Require Closed M5 Rejection Candle Back Inside Range [Recommended]
 
 input group "=== Machine Learning & Quality Gate ==="
 input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
@@ -91,8 +78,8 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine v6.00 initialized! SL Buffer: $%.2f | Sweep Rejection: %s | ML Gate: %.1f%%",
-               InpSLBufferPips * 0.10, InpRequireSweepRejection ? "ENABLED" : "DISABLED", InpMLGateThreshold * 100.0);
+   PrintFormat("[INIT] Model 2 Personal Engine v3.15 initialized! Total Risk: %.1f%% | ML Gate Threshold: %.1f%%",
+               InpAccountRiskPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
 
@@ -132,6 +119,7 @@ void ManageTrailingStops()
 
    int my_positions = 0;
    bool tp1_open = false;
+   bool tp2_open = false;
 
    for(int i = total - 1; i >= 0; i--)
    {
@@ -143,6 +131,7 @@ void ManageTrailingStops()
          entry_price_level = PositionGetDouble(POSITION_PRICE_OPEN);
 
          if(StringFind(comment, "TP1") >= 0 || StringFind(comment, "_TP1") >= 0) tp1_open = true;
+         if(StringFind(comment, "TP2") >= 0 || StringFind(comment, "_TP2") >= 0) tp2_open = true;
       }
    }
 
@@ -268,7 +257,7 @@ void GeneratePerformanceAnalytics()
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v6.00 - ANTI-STOP HUNT)");
+   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v3.15)");
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -281,9 +270,9 @@ void GeneratePerformanceAnalytics()
    PrintFormat("   - Losing Tickets       : %d Tickets", losing_deals);
    Print("-----------------------------------------------------------------------------------------");
    Print(" TICKET TARGET HIT BREAKDOWN:");
-   PrintFormat("   - TP1 Hits (Fast Exit) : %d Tickets", tp1_count);
-   PrintFormat("   - TP2 Hits (Mid Target): %d Tickets", tp2_count);
-   PrintFormat("   - TP3 Hits (Runner)    : %d Tickets", tp3_count);
+   PrintFormat("   - TP1 Hits (1.0x SL)   : %d Tickets", tp1_count);
+   PrintFormat("   - TP2 Hits (2.0x SL)   : %d Tickets", tp2_count);
+   PrintFormat("   - TP3 Hits (3.0x SL)   : %d Tickets", tp3_count);
    PrintFormat("   - Stop Loss Hits (SL)  : %d Tickets", sl_count);
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" PROFIT FACTOR           : %.2f", profit_factor);
@@ -405,10 +394,9 @@ void OnTick()
    ArraySetAsSeries(m5_rates, true);
    ArraySetAsSeries(m5_ema21, true);
 
-   if(CopyRates(_Symbol, PERIOD_M5, 1, 40, m5_rates) < 40 ||
+   if(CopyRates(_Symbol, PERIOD_M5, 1, 10, m5_rates) < 10 ||
       CopyBuffer(h_m5_ema21, 0, 1, 10, m5_ema21) < 10) return;
 
-   double open_1 = m5_rates[0].open;
    double low_1  = m5_rates[0].low;
    double high_1 = m5_rates[0].high;
    double close_1= m5_rates[0].close;
@@ -435,12 +423,8 @@ void OnTick()
    bool bull_sweep = (prior_5_low <= m5_e21_val);
    bool bear_sweep = (prior_5_high >= m5_e21_val);
 
-   // 🛑 SWEEP REJECTION CONFIRMATION: Closed candle MUST close back inside the swing range
-   bool bull_rejection = InpRequireSweepRejection ? (close_1 > open_1 && close_1 > m5_e21_val) : (close_1 > m5_e21_val);
-   bool bear_rejection = InpRequireSweepRejection ? (close_1 < open_1 && close_1 < m5_e21_val) : (close_1 < m5_e21_val);
-
-   bool base_buy  = h1_bull && bull_fvg && bull_sweep && bull_rejection;
-   bool base_sell = h1_bear && bear_fvg && bear_sweep && bear_rejection;
+   bool base_buy  = h1_bull && bull_fvg && bull_sweep && (close_1 > m5_e21_val);
+   bool base_sell = h1_bear && bear_fvg && bear_sweep && (close_1 < m5_e21_val);
 
    if(!base_buy && !base_sell) return;
 
@@ -452,12 +436,9 @@ void OnTick()
 
    double sl_price, sl_dist_dollars;
 
-   // 🛡️ INCREASED SL LIQUIDITY BUFFER ($1.00 / 10 Pips) TO ELIMINATE STOP HUNTS
-   double sl_buffer_dollars = InpSLBufferPips * 0.10;
-
    if(base_buy)
    {
-      sl_price = recent_3_low - sl_buffer_dollars;
+      sl_price = recent_3_low - 0.50;
       sl_dist_dollars = entry_price - sl_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
@@ -465,7 +446,7 @@ void OnTick()
    }
    else
    {
-      sl_price = recent_3_high + sl_buffer_dollars;
+      sl_price = recent_3_high + 0.50;
       sl_dist_dollars = sl_price - entry_price;
       if(sl_dist_dollars < InpMinSLPips * 0.10) sl_dist_dollars = InpMinSLPips * 0.10;
       if(sl_dist_dollars > InpMaxSLPips * 0.10) sl_dist_dollars = InpMaxSLPips * 0.10;
@@ -483,54 +464,10 @@ void OnTick()
       return;
    }
 
-   // 🎯 TAKE PROFIT SELECTION (Mathematical R:R vs Structural)
-   double tp1_price = 0.0, tp2_price = 0.0, tp3_price = 0.0;
-
-   if(InpTPMode == TP_MODE_MATHEMATICAL)
-   {
-      tp1_price = base_buy ? (entry_price + sl_dist_dollars * 1.0) : (entry_price - sl_dist_dollars * 1.0);
-      tp2_price = base_buy ? (entry_price + sl_dist_dollars * 2.0) : (entry_price - sl_dist_dollars * 2.0);
-      tp3_price = base_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
-   }
-   else
-   {
-      double struct_10_high = m5_rates[0].high;
-      double struct_20_high = m5_rates[0].high;
-      double struct_40_high = m5_rates[0].high;
-
-      double struct_10_low  = m5_rates[0].low;
-      double struct_20_low  = m5_rates[0].low;
-      double struct_40_low  = m5_rates[0].low;
-
-      for(int k = 1; k < 40; k++)
-      {
-         if(k < 10)
-         {
-            if(m5_rates[k].high > struct_10_high) struct_10_high = m5_rates[k].high;
-            if(m5_rates[k].low  < struct_10_low)  struct_10_low  = m5_rates[k].low;
-         }
-         if(k < 20)
-         {
-            if(m5_rates[k].high > struct_20_high) struct_20_high = m5_rates[k].high;
-            if(m5_rates[k].low  < struct_20_low)  struct_20_low  = m5_rates[k].low;
-         }
-         if(m5_rates[k].high > struct_40_high) struct_40_high = m5_rates[k].high;
-         if(m5_rates[k].low  < struct_40_low)  struct_40_low  = m5_rates[k].low;
-      }
-
-      if(base_buy)
-      {
-         tp1_price = MathMax(entry_price + 1.50, struct_10_high);
-         tp2_price = MathMax(tp1_price + 1.50, struct_20_high);
-         tp3_price = MathMax(tp2_price + 2.00, struct_40_high);
-      }
-      else
-      {
-         tp1_price = MathMin(entry_price - 1.50, struct_10_low);
-         tp2_price = MathMin(tp1_price - 1.50, struct_20_low);
-         tp3_price = MathMin(tp2_price - 2.00, struct_40_low);
-      }
-   }
+   // 🎯 DYNAMIC 1:1, 1:2, 1:3 TAKE PROFIT TARGETS
+   double tp1_price = base_buy ? (entry_price + sl_dist_dollars * 1.0) : (entry_price - sl_dist_dollars * 1.0);
+   double tp2_price = base_buy ? (entry_price + sl_dist_dollars * 2.0) : (entry_price - sl_dist_dollars * 2.0);
+   double tp3_price = base_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
 
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    
@@ -564,8 +501,8 @@ void OnTick()
    double lot_t3 = CalculateTicketLotSize(r3_usd, sl_dist_dollars);
 
    total_setups_count++;
-   PrintFormat("[PERSONAL ENGINE SIGNAL #%d] %s @ $%.2f | ML Prob: %.1f%% | TP Targets: $%.2f, $%.2f, $%.2f",
-               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, ml_prob * 100.0, tp1_price, tp2_price, tp3_price);
+   PrintFormat("[PERSONAL ENGINE SIGNAL #%d] %s @ $%.2f | ML Prob: %.1f%% | SL: $%.2f | Lots: T1=%.2f, T2=%.2f, T3=%.2f",
+               total_setups_count, base_buy ? "BUY" : "SELL", entry_price, ml_prob * 100.0, sl_price, lot_t1, lot_t2, lot_t3);
 
    double tp_array[3]  = {tp1_price, tp2_price, tp3_price};
    double lot_array[3] = {lot_t1, lot_t2, lot_t3};
@@ -584,7 +521,7 @@ void OnTick()
       request.tp           = tp_array[i];
       request.deviation    = 20;
       request.magic        = InpMagicNumber;
-      request.comment      = StringFormat("[PERS_ENG]_TP%d_ML=%.1f", i + 1, ml_prob * 100.0);
+      request.comment      = StringFormat("[PERS_ENG]_TP%d", i + 1);
       request.type_time    = ORDER_TIME_GTC;
       request.type_filling = ORDER_FILLING_IOC;
 
@@ -595,7 +532,7 @@ void OnTick()
       else
       {
          total_tickets_count++;
-         PrintFormat("[SUCCESS] Ticket #%d placed! Lot: %.2f | TP: $%.2f | ML Prob: %.1f%%", i + 1, lot_array[i], tp_array[i], ml_prob * 100.0);
+         PrintFormat("[SUCCESS] Ticket #%d placed! Lot: %.2f | TP: $%.2f", i + 1, lot_array[i], tp_array[i]);
       }
    }
 }
