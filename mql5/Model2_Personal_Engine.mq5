@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.30"
+#property version   "3.50"
 #property description "Model 2 Personal Account Scalp Hybrid Engine"
 #property description "Supports Dynamic Execution Timeframe (M5/M15) & Macro Trend Timeframe (M15/M30/H1)."
-#property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
+#property description "Features Fixed Stop Loss (No Trailing Modification) & Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -28,6 +28,12 @@ enum ENUM_EXEC_TIMEFRAME
 {
    EXEC_PERIOD_M5  = PERIOD_M5,  // M5 Setup Execution (Tight Stops / High Frequency) [Recommended]
    EXEC_PERIOD_M15 = PERIOD_M15  // M15 Setup Execution (Wider Stops / Low Frequency)
+};
+
+enum ENUM_TRAILING_MODE
+{
+   TRAILING_MODE_FIXED     = 0, // Fixed SL (No Trailing Modification) [Recommended Baseline]
+   TRAILING_MODE_BE_TP1   = 1  // Move SL to Break-Even when TP1 Hits
 };
 
 //--- Input Parameters
@@ -52,7 +58,7 @@ input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance (Pips / $12.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed SL [Recommended], 1=BE on TP1, 3=TP1 on TP2)
+input ENUM_TRAILING_MODE InpTrailingMode      = TRAILING_MODE_FIXED;       // Trailing Stop Mode (Fixed SL Baseline)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
 input group "=== Strategy Parameters ==="
@@ -100,9 +106,10 @@ int OnInit()
 
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? "MODE 1 BE ON TP1" : "FIXED SL";
 
-   PrintFormat("[INIT] Model 2 Personal Engine v3.30 initialized! Exec TF: %s | Macro TF: %s | Risk: %.1f%% | ML Gate: %.1f%%",
-               exec_str, htf_str, InpAccountRiskPct, InpMLGateThreshold * 100.0);
+   PrintFormat("[INIT] Model 2 Personal Engine v3.50 initialized! Exec TF: %s | Macro TF: %s | Trailing: %s",
+               exec_str, htf_str, trail_str);
    return(INIT_SUCCEEDED);
 }
 
@@ -134,7 +141,7 @@ double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int 
 //+------------------------------------------------------------------+
 void ManageTrailingStops()
 {
-   if(InpTrailingMode == 0) return;
+   if(InpTrailingMode == TRAILING_MODE_FIXED) return;
 
    int total = PositionsTotal();
    double entry_price_level = 0.0;
@@ -156,19 +163,9 @@ void ManageTrailingStops()
       }
    }
 
-   if((InpTrailingMode == 1 || InpTrailingMode == 2) && (my_positions > 0 && my_positions < 3 && !tp1_open))
+   if((InpTrailingMode == TRAILING_MODE_BE_TP1) && (my_positions > 0 && my_positions < 3 && !tp1_open))
    {
-      double sl_dist_usd = 2.5;
-      double new_sl = 0.0;
-
-      if(pos_type == POSITION_TYPE_BUY)
-      {
-         new_sl = (InpTrailingMode == 1) ? (entry_price_level + 0.50) : (entry_price_level + sl_dist_usd);
-      }
-      else if(pos_type == POSITION_TYPE_SELL)
-      {
-         new_sl = (InpTrailingMode == 1) ? (entry_price_level - 0.50) : (entry_price_level - sl_dist_usd);
-      }
+      double new_sl = (pos_type == POSITION_TYPE_BUY) ? (entry_price_level + 0.50) : (entry_price_level - 0.50);
 
       for(int i = total - 1; i >= 0; i--)
       {
@@ -279,9 +276,10 @@ void GeneratePerformanceAnalytics()
 
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? "MODE 1 BE ON TP1" : "FIXED SL";
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PERSONAL ENGINE v3.30 - %s EXEC / %s MACRO)", exec_str, htf_str);
+   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PERSONAL ENGINE v3.50 - %s EXEC / %s MACRO / %s)", exec_str, htf_str, trail_str);
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);

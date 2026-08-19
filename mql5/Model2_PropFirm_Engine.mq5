@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.30"
+#property version   "3.50"
 #property description "Model 2 Prop Firm Scalp Hybrid Engine"
 #property description "Supports Dynamic Execution Timeframe (M5/M15) & Macro Trend Timeframe (M15/M30/H1)."
-#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 58% ML Gate."
+#property description "Features Fixed Stop Loss (No Trailing Modification) with Prop Firm Limits."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -30,6 +30,12 @@ enum ENUM_EXEC_TIMEFRAME
    EXEC_PERIOD_M15 = PERIOD_M15  // M15 Setup Execution (Wider Stops / Low Frequency)
 };
 
+enum ENUM_TRAILING_MODE
+{
+   TRAILING_MODE_FIXED     = 0, // Fixed SL (No Trailing Modification) [Recommended Baseline]
+   TRAILING_MODE_BE_TP1   = 1  // Move SL to Break-Even when TP1 Hits
+};
+
 //--- Input Parameters
 input group "=== Strategy Timeframe Selection ==="
 input ENUM_EXEC_TIMEFRAME   InpExecutionTimeframe= EXEC_PERIOD_M5;       // Execution Timeframe (M5 Recommended)
@@ -42,19 +48,19 @@ input double                InpMaxDailyLossPct  = 4.0;                  // Hard 
 input double                InpMaxOverallDDPct  = 8.0;                  // Hard Max Overall Drawdown Limit (%)
 input double                InpFixedLotPerTicket= 0.0;                  // Fixed Lot per Ticket (0.0 = Use Risk % / Set > 0 for Fixed Lots)
 
-input group "=== Machine Learning & Quality Gate ==="
-input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
-
 input group "=== Custom Ticket Risk % (Used if Mode = Custom) ==="
 input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (% of Balance)
 input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (% of Balance)
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
+input group "=== Machine Learning & Quality Gate ==="
+input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0%)
+
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance (Pips / $12.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed SL [Recommended], 1=BE on TP1, 3=TP1 on TP2)
+input ENUM_TRAILING_MODE InpTrailingMode      = TRAILING_MODE_FIXED;       // Trailing Stop Mode (Fixed SL Baseline)
 input int      InpMagicNumber      = 2002;             // Magic Number (Prop Firm Engine)
 
 input group "=== Strategy Parameters ==="
@@ -106,9 +112,10 @@ int OnInit()
 
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? "MODE 1 BE ON TP1" : "FIXED SL";
 
-   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.30 initialized! Exec TF: %s | Macro TF: %s | Max Daily Loss: %.1f%% | ML Gate: %.1f%%",
-               exec_str, htf_str, InpMaxDailyLossPct, InpMLGateThreshold * 100.0);
+   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.50 initialized! Exec TF: %s | Macro TF: %s | Trailing: %s",
+               exec_str, htf_str, trail_str);
    return(INIT_SUCCEEDED);
 }
 
@@ -140,7 +147,7 @@ double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int 
 //+------------------------------------------------------------------+
 void ManageTrailingStops()
 {
-   if(InpTrailingMode == 0) return;
+   if(InpTrailingMode == TRAILING_MODE_FIXED) return;
 
    int total = PositionsTotal();
    double entry_price_level = 0.0;
@@ -162,19 +169,9 @@ void ManageTrailingStops()
       }
    }
 
-   if((InpTrailingMode == 1 || InpTrailingMode == 2) && (my_positions > 0 && my_positions < 3 && !tp1_open))
+   if((InpTrailingMode == TRAILING_MODE_BE_TP1) && (my_positions > 0 && my_positions < 3 && !tp1_open))
    {
-      double sl_dist_usd = 2.5;
-      double new_sl = 0.0;
-
-      if(pos_type == POSITION_TYPE_BUY)
-      {
-         new_sl = (InpTrailingMode == 1) ? (entry_price_level + 0.50) : (entry_price_level + sl_dist_usd);
-      }
-      else if(pos_type == POSITION_TYPE_SELL)
-      {
-         new_sl = (InpTrailingMode == 1) ? (entry_price_level - 0.50) : (entry_price_level - sl_dist_usd);
-      }
+      double new_sl = (pos_type == POSITION_TYPE_BUY) ? (entry_price_level + 0.50) : (entry_price_level - 0.50);
 
       for(int i = total - 1; i >= 0; i--)
       {
@@ -285,9 +282,10 @@ void GeneratePerformanceAnalytics()
 
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? "MODE 1 BE ON TP1" : "FIXED SL";
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PROP ENGINE v3.30 - %s EXEC / %s MACRO)", exec_str, htf_str);
+   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PROP ENGINE v3.50 - %s EXEC / %s MACRO / %s)", exec_str, htf_str, trail_str);
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -367,8 +365,7 @@ void OnTick()
 {
    ManageTrailingStops();
 
-   ENUM_TIMEFRAMES exec_tf = (ENUM_TIMEFRAMES)InpExecutionTimeframe;
-   datetime current_bar_time = iTime(_Symbol, exec_tf, 0);
+   datetime current_bar_time = iTime(_Symbol, PERIOD_M5, 0);
    if(current_bar_time == last_bar_time) return;
    last_bar_time = current_bar_time;
 
@@ -447,6 +444,7 @@ void OnTick()
 
    if(!htf_bull && !htf_bear) return;
 
+   ENUM_TIMEFRAMES exec_tf = (ENUM_TIMEFRAMES)InpExecutionTimeframe;
    MqlRates exec_rates[];
    double exec_ema21[];
    ArraySetAsSeries(exec_rates, true);
