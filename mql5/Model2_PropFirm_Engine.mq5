@@ -5,10 +5,10 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.20"
-#property description "Model 2 Prop Firm Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 58% ML Quality Gate."
-#property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
+#property version   "3.30"
+#property description "Model 2 Prop Firm Scalp Hybrid Engine"
+#property description "Supports Dynamic Execution Timeframe (M5/M15) & Macro Trend Timeframe (M15/M30/H1)."
+#property description "Enforces Strict Prop Firm Daily Loss Limits & Drawdown Guardrails with 58% ML Gate."
 
 enum ENUM_RISK_DISTRIBUTION
 {
@@ -19,14 +19,21 @@ enum ENUM_RISK_DISTRIBUTION
 
 enum ENUM_HTF_TIMEFRAME
 {
-   HTF_PERIOD_M15 = PERIOD_M15, // 15-Minute Macro Trend (Fastest Trend Catch)
-   HTF_PERIOD_M30 = PERIOD_M30, // 30-Minute Macro Trend (Highest Edge - 5.17 PF / +159% Return) [Recommended]
+   HTF_PERIOD_M15 = PERIOD_M15, // 15-Minute Macro Trend (Fastest Trend Catch - 1.80 PF / +190% Return) [Recommended]
+   HTF_PERIOD_M30 = PERIOD_M30, // 30-Minute Macro Trend (High Edge - 1.68 PF / +164% Return)
    HTF_PERIOD_H1  = PERIOD_H1   // 1-Hour Macro Trend (Classic Baseline)
 };
 
+enum ENUM_EXEC_TIMEFRAME
+{
+   EXEC_PERIOD_M5  = PERIOD_M5,  // M5 Setup Execution (Tight Stops / High Frequency) [Recommended]
+   EXEC_PERIOD_M15 = PERIOD_M15  // M15 Setup Execution (Wider Stops / Low Frequency)
+};
+
 //--- Input Parameters
-input group "=== Strategy Macro Parameters ==="
-input ENUM_HTF_TIMEFRAME    InpMacroTimeframe   = HTF_PERIOD_M30;       // Macro Trend Timeframe (M30 Recommended)
+input group "=== Strategy Timeframe Selection ==="
+input ENUM_EXEC_TIMEFRAME   InpExecutionTimeframe= EXEC_PERIOD_M5;       // Execution Timeframe (M5 Recommended)
+input ENUM_HTF_TIMEFRAME    InpMacroTimeframe    = HTF_PERIOD_M15;      // Macro Trend Timeframe (M15 Recommended)
 
 input group "=== Risk & Prop Firm Guardrails ==="
 input double                InpAccountRiskPct   = 3.0;                  // Total Account Risk per Setup (%)
@@ -45,7 +52,7 @@ input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (
 
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
-input double   InpMaxSLPips        = 80.0;             // Maximum SL Distance (Pips / $8.00)
+input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance (Pips / $12.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
 input int      InpTrailingMode     = 0;                // Trailing Stop Mode (0=Fixed SL [Recommended], 1=BE on TP1, 3=TP1 on TP2)
 input int      InpMagicNumber      = 2002;             // Magic Number (Prop Firm Engine)
@@ -60,7 +67,7 @@ input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
 input color    InpSellColor        = clrCrimson;       // Sell Order Arrow Color
 
 //--- Global Variables & Handles
-int      h_htf_ema21, h_htf_ema50, h_m5_ema21, h_rsi14, h_atr14;
+int      h_htf_ema21, h_htf_ema50, h_exec_ema21, h_rsi14, h_atr14;
 datetime last_bar_time;
 
 double   initial_balance = 0.0;
@@ -74,14 +81,16 @@ int      total_tickets_count = 0;
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   ENUM_TIMEFRAMES htf_tf = (ENUM_TIMEFRAMES)InpMacroTimeframe;
-   h_htf_ema21 = iMA(_Symbol, htf_tf, 21, 0, MODE_EMA, PRICE_CLOSE);
-   h_htf_ema50 = iMA(_Symbol, htf_tf, 50, 0, MODE_EMA, PRICE_CLOSE);
-   h_m5_ema21  = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
-   h_rsi14     = iRSI(_Symbol, PERIOD_M5, 14, PRICE_CLOSE);
-   h_atr14     = iATR(_Symbol, PERIOD_M5, 14);
+   ENUM_TIMEFRAMES htf_tf  = (ENUM_TIMEFRAMES)InpMacroTimeframe;
+   ENUM_TIMEFRAMES exec_tf = (ENUM_TIMEFRAMES)InpExecutionTimeframe;
 
-   if(h_htf_ema21 == INVALID_HANDLE || h_htf_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE ||
+   h_htf_ema21  = iMA(_Symbol, htf_tf, 21, 0, MODE_EMA, PRICE_CLOSE);
+   h_htf_ema50  = iMA(_Symbol, htf_tf, 50, 0, MODE_EMA, PRICE_CLOSE);
+   h_exec_ema21 = iMA(_Symbol, exec_tf, 21, 0, MODE_EMA, PRICE_CLOSE);
+   h_rsi14      = iRSI(_Symbol, exec_tf, 14, PRICE_CLOSE);
+   h_atr14      = iATR(_Symbol, exec_tf, 14);
+
+   if(h_htf_ema21 == INVALID_HANDLE || h_htf_ema50 == INVALID_HANDLE || h_exec_ema21 == INVALID_HANDLE ||
       h_rsi14 == INVALID_HANDLE || h_atr14 == INVALID_HANDLE)
    {
       Print("[ERROR] Failed to create indicator handles.");
@@ -95,9 +104,11 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   string tf_str = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
-   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.20 initialized! Macro TF: %s | Max Daily Loss: %.1f%% | ML Gate: %.1f%%",
-               tf_str, InpMaxDailyLossPct, InpMLGateThreshold * 100.0);
+   string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
+   string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+
+   PrintFormat("[INIT] Model 2 Prop Firm Engine v3.30 initialized! Exec TF: %s | Macro TF: %s | Max Daily Loss: %.1f%% | ML Gate: %.1f%%",
+               exec_str, htf_str, InpMaxDailyLossPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
 
@@ -272,10 +283,11 @@ void GeneratePerformanceAnalytics()
    double win_rate = (closed_tickets > 0) ? ((double)winning_deals / closed_tickets) * 100.0 : 0.0;
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
-   string tf_str = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
+   string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PROP FIRM ENGINE v3.20 - %s MACRO)", tf_str);
+   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PROP ENGINE v3.30 - %s EXEC / %s MACRO)", exec_str, htf_str);
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -300,7 +312,7 @@ void OnDeinit(const int reason)
    GeneratePerformanceAnalytics();
    IndicatorRelease(h_htf_ema21);
    IndicatorRelease(h_htf_ema50);
-   IndicatorRelease(h_m5_ema21);
+   IndicatorRelease(h_exec_ema21);
    IndicatorRelease(h_rsi14);
    IndicatorRelease(h_atr14);
    Comment("");
@@ -355,7 +367,8 @@ void OnTick()
 {
    ManageTrailingStops();
 
-   datetime current_bar_time = iTime(_Symbol, PERIOD_M5, 0);
+   ENUM_TIMEFRAMES exec_tf = (ENUM_TIMEFRAMES)InpExecutionTimeframe;
+   datetime current_bar_time = iTime(_Symbol, exec_tf, 0);
    if(current_bar_time == last_bar_time) return;
    last_bar_time = current_bar_time;
 
@@ -427,26 +440,27 @@ void OnTick()
    bool htf_bull = (htf_close[0] > htf_ema21[0]) && (htf_ema21[0] > htf_ema50[0]);
    bool htf_bear = (htf_close[0] < htf_ema21[0]) && (htf_ema21[0] < htf_ema50[0]);
 
-   string tf_str = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
+   string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
    string trend_str = htf_bull ? "BULLISH UPTREND" : (htf_bear ? "BEARISH DOWNTREND" : "NEUTRAL");
-   Comment(StringFormat("MODEL 2 PROP ENGINE [ACTIVE]\n%s Macro Trend: %s", tf_str, trend_str));
+   Comment(StringFormat("MODEL 2 PROP ENGINE [ACTIVE]\nExec TF: %s | %s Macro Trend: %s", exec_str, htf_str, trend_str));
 
    if(!htf_bull && !htf_bear) return;
 
-   MqlRates m5_rates[];
-   double m5_ema21[];
-   ArraySetAsSeries(m5_rates, true);
-   ArraySetAsSeries(m5_ema21, true);
+   MqlRates exec_rates[];
+   double exec_ema21[];
+   ArraySetAsSeries(exec_rates, true);
+   ArraySetAsSeries(exec_ema21, true);
 
-   if(CopyRates(_Symbol, PERIOD_M5, 1, 10, m5_rates) < 10 ||
-      CopyBuffer(h_m5_ema21, 0, 1, 10, m5_ema21) < 10) return;
+   if(CopyRates(_Symbol, exec_tf, 1, 10, exec_rates) < 10 ||
+      CopyBuffer(h_exec_ema21, 0, 1, 10, exec_ema21) < 10) return;
 
-   double low_1  = m5_rates[0].low;
-   double high_1 = m5_rates[0].high;
-   double close_1= m5_rates[0].close;
+   double low_1  = exec_rates[0].low;
+   double high_1 = exec_rates[0].high;
+   double close_1= exec_rates[0].close;
 
-   double low_3  = m5_rates[2].low;
-   double high_3 = m5_rates[2].high;
+   double low_3  = exec_rates[2].low;
+   double high_3 = exec_rates[2].high;
 
    double bull_fvg_pips = (low_1 - high_3) / _Point;
    double bear_fvg_pips = (low_3 - high_1) / _Point;
@@ -454,29 +468,29 @@ void OnTick()
    bool bull_fvg = bull_fvg_pips >= (InpFVGMinPips * 10.0);
    bool bear_fvg = bear_fvg_pips >= (InpFVGMinPips * 10.0);
 
-   double prior_5_low  = m5_rates[1].low;
-   double prior_5_high = m5_rates[1].high;
+   double prior_5_low  = exec_rates[1].low;
+   double prior_5_high = exec_rates[1].high;
    for(int k = 1; k <= 5; k++)
    {
-      if(m5_rates[k].low < prior_5_low)   prior_5_low  = m5_rates[k].low;
-      if(m5_rates[k].high > prior_5_high) prior_5_high = m5_rates[k].high;
+      if(exec_rates[k].low < prior_5_low)   prior_5_low  = exec_rates[k].low;
+      if(exec_rates[k].high > prior_5_high) prior_5_high = exec_rates[k].high;
    }
 
-   double m5_e21_val = m5_ema21[0];
+   double exec_e21_val = exec_ema21[0];
 
-   bool bull_sweep = (prior_5_low <= m5_e21_val);
-   bool bear_sweep = (prior_5_high >= m5_e21_val);
+   bool bull_sweep = (prior_5_low <= exec_e21_val);
+   bool bear_sweep = (prior_5_high >= exec_e21_val);
 
-   bool base_buy  = htf_bull && bull_fvg && bull_sweep && (close_1 > m5_e21_val);
-   bool base_sell = htf_bear && bear_fvg && bear_sweep && (close_1 < m5_e21_val);
+   bool base_buy  = htf_bull && bull_fvg && bull_sweep && (close_1 > exec_e21_val);
+   bool base_sell = htf_bear && bear_fvg && bear_sweep && (close_1 < exec_e21_val);
 
    if(!base_buy && !base_sell) return;
 
    ENUM_ORDER_TYPE order_type = base_buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
    double entry_price = base_buy ? ask : bid;
 
-   double recent_3_low  = MathMin(m5_rates[0].low, MathMin(m5_rates[1].low, m5_rates[2].low));
-   double recent_3_high = MathMax(m5_rates[0].high, MathMax(m5_rates[1].high, m5_rates[2].high));
+   double recent_3_low  = MathMin(exec_rates[0].low, MathMin(exec_rates[1].low, exec_rates[2].low));
+   double recent_3_high = MathMax(exec_rates[0].high, MathMax(exec_rates[1].high, exec_rates[2].high));
 
    double sl_price, sl_dist_dollars;
 
