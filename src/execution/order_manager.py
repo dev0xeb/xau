@@ -98,6 +98,13 @@ class MT5OrderManager:
         lots = max(min_lot, min(max_lot, lots))
         return round(lots, 2)
 
+    def disconnect(self):
+        """Disconnect from MT5 terminal."""
+        if MT5_AVAILABLE and self.connected:
+            mt5.shutdown()
+            self.connected = False
+            logger.info("Disconnected cleanly from MT5 terminal.")
+
     def place_split_tickets(
         self,
         engine_type: str,  # 'PERSONAL' or 'PROP'
@@ -107,16 +114,20 @@ class MT5OrderManager:
         tp1_price: float,
         tp2_price: float,
         tp3_price: float,
+        risk_pct: float = 3.0,
+        magic: int = 2001,
+        ml_proba: float = 0.0,
         dry_run: bool = False
     ) -> bool:
         """Place 3 split tickets for TP1 (1.0x), TP2 (2.0x), and TP3 (3.0x) with distinct Magic Number."""
-        magic_number = self.MAGIC_PERSONAL if engine_type.upper() == 'PERSONAL' else self.MAGIC_PROP
+        magic_number = magic if magic > 0 else (self.MAGIC_PERSONAL if engine_type.upper() == 'PERSONAL' else self.MAGIC_PROP)
         comment = self.COMMENT_PERSONAL if engine_type.upper() == 'PERSONAL' else self.COMMENT_PROP
 
         # Front-Weighted Burst Sizing: 50% TP1 / 33.3% TP2 / 16.7% TP3
         account_info = mt5.account_info() if self.connected else None
         current_balance = account_info.balance if account_info else self.account_balance
-        total_risk_usd = current_balance * (self.risk_pct / 100.0)
+        used_risk_pct = risk_pct if risk_pct > 0 else self.risk_pct
+        total_risk_usd = current_balance * (used_risk_pct / 100.0)
         r1_usd = total_risk_usd * 0.50
         r2_usd = total_risk_usd * (1.0 / 3.0)
         r3_usd = total_risk_usd * (1.0 / 6.0)
