@@ -144,7 +144,8 @@ class MT5OrderManager:
 
         symbol_info = mt5.symbol_info(self.symbol)
         point = symbol_info.point if symbol_info else 0.01
-        min_stop_dist = (symbol_info.stops_level * point) if (symbol_info and symbol_info.stops_level > 0) else 0.30
+        stops_lvl = getattr(symbol_info, 'trade_stops_level', 0) if symbol_info else 0
+        min_stop_dist = (stops_lvl * point) if (stops_lvl and stops_lvl > 0) else 0.30
 
         success_count = 0
         for i, (tp, vol) in enumerate(zip(tp_levels, lot_sizes), 1):
