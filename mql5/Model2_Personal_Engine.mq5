@@ -5,9 +5,9 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "3.15"
+#property version   "3.20"
 #property description "Model 2 Personal Account Scalp Hybrid Engine (M5 Timeframe)"
-#property description "Enforces H1 Macro Trend, M5 FVG Displacement, M5 Liquidity Sweep, Closed EMA21, and 58% ML Quality Gate."
+#property description "Enforces HTF Macro Trend (M30/M15/H1), M5 FVG Displacement, M5 Liquidity Sweep, Closed EMA21, and 58% ML Gate."
 #property description "Features Dynamic R:R Multi-Ticket Exits with Front-Weighted Burst Risk Allocation."
 
 enum ENUM_RISK_DISTRIBUTION
@@ -17,7 +17,17 @@ enum ENUM_RISK_DISTRIBUTION
    RISK_DIST_CUSTOM        = 2  // Custom Per-Ticket Risk (Use InpTP1RiskPct, InpTP2RiskPct, InpTP3RiskPct)
 };
 
+enum ENUM_HTF_TIMEFRAME
+{
+   HTF_PERIOD_M15 = PERIOD_M15, // 15-Minute Macro Trend (Fastest Trend Catch)
+   HTF_PERIOD_M30 = PERIOD_M30, // 30-Minute Macro Trend (Highest Edge - 5.17 PF / +159% Return) [Recommended]
+   HTF_PERIOD_H1  = PERIOD_H1   // 1-Hour Macro Trend (Classic Baseline)
+};
+
 //--- Input Parameters
+input group "=== Strategy Macro Parameters ==="
+input ENUM_HTF_TIMEFRAME    InpMacroTimeframe   = HTF_PERIOD_M30;       // Macro Trend Timeframe (M30 Recommended)
+
 input group "=== Risk & Account Management ==="
 input double                InpAccountRiskPct   = 3.0;                  // Total Account Risk per Setup (%)
 input ENUM_RISK_DISTRIBUTION InpRiskDistribution = RISK_DIST_FRONT_WEIGHTED; // Risk Distribution Mode
@@ -48,7 +58,7 @@ input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
 input color    InpSellColor        = clrCrimson;       // Sell Order Arrow Color
 
 //--- Global Variables & Handles
-int      h_h1_ema21, h_h1_ema50, h_m5_ema21, h_rsi14, h_atr14;
+int      h_htf_ema21, h_htf_ema50, h_m5_ema21, h_rsi14, h_atr14;
 datetime last_bar_time;
 
 double   initial_balance = 0.0;
@@ -60,13 +70,14 @@ int      total_tickets_count = 0;
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   h_h1_ema21 = iMA(_Symbol, PERIOD_H1, 21, 0, MODE_EMA, PRICE_CLOSE);
-   h_h1_ema50 = iMA(_Symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
-   h_m5_ema21 = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
-   h_rsi14    = iRSI(_Symbol, PERIOD_M5, 14, PRICE_CLOSE);
-   h_atr14    = iATR(_Symbol, PERIOD_M5, 14);
+   ENUM_TIMEFRAMES htf_tf = (ENUM_TIMEFRAMES)InpMacroTimeframe;
+   h_htf_ema21 = iMA(_Symbol, htf_tf, 21, 0, MODE_EMA, PRICE_CLOSE);
+   h_htf_ema50 = iMA(_Symbol, htf_tf, 50, 0, MODE_EMA, PRICE_CLOSE);
+   h_m5_ema21  = iMA(_Symbol, PERIOD_M5, 21, 0, MODE_EMA, PRICE_CLOSE);
+   h_rsi14     = iRSI(_Symbol, PERIOD_M5, 14, PRICE_CLOSE);
+   h_atr14     = iATR(_Symbol, PERIOD_M5, 14);
 
-   if(h_h1_ema21 == INVALID_HANDLE || h_h1_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE ||
+   if(h_htf_ema21 == INVALID_HANDLE || h_htf_ema50 == INVALID_HANDLE || h_m5_ema21 == INVALID_HANDLE ||
       h_rsi14 == INVALID_HANDLE || h_atr14 == INVALID_HANDLE)
    {
       Print("[ERROR] Failed to create indicator handles.");
@@ -78,8 +89,9 @@ int OnInit()
    total_setups_count = 0;
    total_tickets_count = 0;
 
-   PrintFormat("[INIT] Model 2 Personal Engine v3.15 initialized! Total Risk: %.1f%% | ML Gate Threshold: %.1f%%",
-               InpAccountRiskPct, InpMLGateThreshold * 100.0);
+   string tf_str = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   PrintFormat("[INIT] Model 2 Personal Engine v3.20 initialized! Macro TF: %s | Total Risk: %.1f%% | ML Gate: %.1f%%",
+               tf_str, InpAccountRiskPct, InpMLGateThreshold * 100.0);
    return(INIT_SUCCEEDED);
 }
 
@@ -119,7 +131,6 @@ void ManageTrailingStops()
 
    int my_positions = 0;
    bool tp1_open = false;
-   bool tp2_open = false;
 
    for(int i = total - 1; i >= 0; i--)
    {
@@ -131,7 +142,6 @@ void ManageTrailingStops()
          entry_price_level = PositionGetDouble(POSITION_PRICE_OPEN);
 
          if(StringFind(comment, "TP1") >= 0 || StringFind(comment, "_TP1") >= 0) tp1_open = true;
-         if(StringFind(comment, "TP2") >= 0 || StringFind(comment, "_TP2") >= 0) tp2_open = true;
       }
    }
 
@@ -256,8 +266,10 @@ void GeneratePerformanceAnalytics()
    double win_rate = (closed_tickets > 0) ? ((double)winning_deals / closed_tickets) * 100.0 : 0.0;
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
+   string tf_str = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+
    Print("=========================================================================================");
-   Print(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v3.15)");
+   PrintFormat(" PERFORMANCE & ANALYTICS SUMMARY REPORT: MODEL 2 (PERSONAL ENGINE v3.20 - %s MACRO)", tf_str);
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -286,8 +298,8 @@ void GeneratePerformanceAnalytics()
 void OnDeinit(const int reason)
 {
    GeneratePerformanceAnalytics();
-   IndicatorRelease(h_h1_ema21);
-   IndicatorRelease(h_h1_ema50);
+   IndicatorRelease(h_htf_ema21);
+   IndicatorRelease(h_htf_ema50);
    IndicatorRelease(h_m5_ema21);
    IndicatorRelease(h_rsi14);
    IndicatorRelease(h_atr14);
@@ -372,22 +384,24 @@ void OnTick()
       return;
    }
 
-   double h1_close[], h1_ema21[], h1_ema50[];
-   ArraySetAsSeries(h1_close, true);
-   ArraySetAsSeries(h1_ema21, true);
-   ArraySetAsSeries(h1_ema50, true);
+   ENUM_TIMEFRAMES htf_tf = (ENUM_TIMEFRAMES)InpMacroTimeframe;
+   double htf_close[], htf_ema21[], htf_ema50[];
+   ArraySetAsSeries(htf_close, true);
+   ArraySetAsSeries(htf_ema21, true);
+   ArraySetAsSeries(htf_ema50, true);
 
-   if(CopyClose(_Symbol, PERIOD_H1, 1, 2, h1_close) < 2 ||
-      CopyBuffer(h_h1_ema21, 0, 1, 2, h1_ema21) < 2 ||
-      CopyBuffer(h_h1_ema50, 0, 1, 2, h1_ema50) < 2) return;
+   if(CopyClose(_Symbol, htf_tf, 1, 2, htf_close) < 2 ||
+      CopyBuffer(h_htf_ema21, 0, 1, 2, htf_ema21) < 2 ||
+      CopyBuffer(h_htf_ema50, 0, 1, 2, htf_ema50) < 2) return;
 
-   bool h1_bull = (h1_close[0] > h1_ema21[0]) && (h1_ema21[0] > h1_ema50[0]);
-   bool h1_bear = (h1_close[0] < h1_ema21[0]) && (h1_ema21[0] < h1_ema50[0]);
+   bool htf_bull = (htf_close[0] > htf_ema21[0]) && (htf_ema21[0] > htf_ema50[0]);
+   bool htf_bear = (htf_close[0] < htf_ema21[0]) && (htf_ema21[0] < htf_ema50[0]);
 
-   string trend_str = h1_bull ? "BULLISH UPTREND" : (h1_bear ? "BEARISH DOWNTREND" : "NEUTRAL");
-   Comment("MODEL 2 PERSONAL ENGINE [ACTIVE]\nH1 Macro Trend: ", trend_str);
+   string tf_str = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
+   string trend_str = htf_bull ? "BULLISH UPTREND" : (htf_bear ? "BEARISH DOWNTREND" : "NEUTRAL");
+   Comment(StringFormat("MODEL 2 PERSONAL ENGINE [ACTIVE]\n%s Macro Trend: %s", tf_str, trend_str));
 
-   if(!h1_bull && !h1_bear) return;
+   if(!htf_bull && !htf_bear) return;
 
    MqlRates m5_rates[];
    double m5_ema21[];
@@ -423,8 +437,8 @@ void OnTick()
    bool bull_sweep = (prior_5_low <= m5_e21_val);
    bool bear_sweep = (prior_5_high >= m5_e21_val);
 
-   bool base_buy  = h1_bull && bull_fvg && bull_sweep && (close_1 > m5_e21_val);
-   bool base_sell = h1_bear && bear_fvg && bear_sweep && (close_1 < m5_e21_val);
+   bool base_buy  = htf_bull && bull_fvg && bull_sweep && (close_1 > m5_e21_val);
+   bool base_sell = htf_bear && bear_fvg && bear_sweep && (close_1 < m5_e21_val);
 
    if(!base_buy && !base_sell) return;
 
