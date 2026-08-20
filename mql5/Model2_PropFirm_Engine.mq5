@@ -542,9 +542,12 @@ void OnTick()
    // 🌏 ASIAN HIGH/LOW LIQUIDITY SWEEP GUARDRAIL (78.6% Win Rate / 7.86 PF)
    if(InpAsianSweepOnly)
    {
+      datetime now_time = iTime(_Symbol, exec_tf, 0);
+      datetime midnight_utc = now_time - (now_time % 86400);
+
       MqlRates asian_rates[];
       ArraySetAsSeries(asian_rates, true);
-      int asian_copied = CopyRates(_Symbol, PERIOD_M5, 0, 150, asian_rates);
+      int asian_copied = CopyRates(_Symbol, PERIOD_M5, midnight_utc, now_time, asian_rates);
       if(asian_copied > 0)
       {
          double asian_high = 0.0, asian_low = 999999.0;
@@ -558,8 +561,11 @@ void OnTick()
                if(asian_rates[a].low < asian_low)   asian_low  = asian_rates[a].low;
             }
          }
-         if(base_buy && prior_5_low > asian_low) return; // Require Asian Low Sweep
-         if(base_sell && prior_5_high < asian_high) return; // Require Asian High Sweep
+         if(asian_high > 0.0 && asian_low < 900000.0)
+         {
+            if(base_buy && prior_5_low > asian_low) return; // Require Asian Low Sweep
+            if(base_sell && prior_5_high < asian_high) return; // Require Asian High Sweep
+         }
       }
    }
 
