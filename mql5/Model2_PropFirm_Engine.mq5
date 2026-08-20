@@ -293,50 +293,6 @@ void GeneratePerformanceAnalytics()
          total_gross_loss += MathAbs(profit);
          losing_deals++;
          sl_count++;
-
-         // 🩺 FORENSIC AUDIT OF WHY SL WAS HIT
-         datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
-         double deal_price  = HistoryDealGetDouble(ticket, DEAL_PRICE);
-         long deal_type     = HistoryDealGetInteger(ticket, DEAL_TYPE);
-
-         datetime entry_time = deal_time - 3600;
-         double entry_price = deal_price;
-         for(int j = 0; j < total_deals; j++)
-         {
-            ulong in_t = HistoryDealGetTicket(j);
-            if(in_t > 0 && HistoryDealGetInteger(in_t, DEAL_POSITION_ID) == pos_id && HistoryDealGetInteger(in_t, DEAL_ENTRY) == DEAL_ENTRY_IN)
-            {
-               entry_time  = (datetime)HistoryDealGetInteger(in_t, DEAL_TIME);
-               entry_price = HistoryDealGetDouble(in_t, DEAL_PRICE);
-               break;
-            }
-         }
-
-         MqlDateTime dt;
-         TimeToStruct(entry_time, dt);
-
-         string root_cause = "Unfiltered Pullback / Missing Asian Sweep";
-         if(dt.hour < 6 || dt.hour >= 17)
-            root_cause = "Off-Session Noise / Spread Spike";
-
-         PrintFormat(" [SL FORENSIC AUDIT] Ticket #%d (%s) Stopped Out! Entry: $%.2f at %s | Exit: $%.2f | ROOT CAUSE: %s",
-                     ticket, (deal_type == DEAL_TYPE_SELL ? "BUY" : "SELL"), entry_price,
-                     TimeToString(entry_time, TIME_DATE|TIME_MINUTES), deal_price, root_cause);
-
-         // Draw Red Warning Marker & Text Callout on Chart
-         string marker_name = StringFormat("SL_AUDIT_%d", ticket);
-         ObjectDelete(0, marker_name);
-         ObjectCreate(0, marker_name, OBJ_ARROW, 0, deal_time, deal_price);
-         ObjectSetInteger(0, marker_name, OBJPROP_ARROWCODE, 242);
-         ObjectSetInteger(0, marker_name, OBJPROP_COLOR, clrRed);
-         ObjectSetInteger(0, marker_name, OBJPROP_WIDTH, 2);
-
-         string txt_name = marker_name + "_txt";
-         ObjectDelete(0, txt_name);
-         ObjectCreate(0, txt_name, OBJ_TEXT, 0, deal_time, deal_price + 0.50);
-         ObjectSetString(0, txt_name, OBJPROP_TEXT, "SL HIT: " + root_cause);
-         ObjectSetInteger(0, txt_name, OBJPROP_COLOR, clrOrangeRed);
-         ObjectSetInteger(0, txt_name, OBJPROP_FONTSIZE, 8);
       }
    }
 
