@@ -237,6 +237,16 @@ string GetEntryComment(ulong pos_id)
 //+------------------------------------------------------------------+
 //| Analyze Deal History & Output Performance Report                 |
 //+------------------------------------------------------------------+
+struct DailyStat
+{
+   string   date_str;
+   datetime day_time;
+   double   net_pnl;
+   int      trade_count;
+   int      wins;
+   int      losses;
+};
+
 void GeneratePerformanceAnalytics()
 {
    double end_balance = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -249,6 +259,10 @@ void GeneratePerformanceAnalytics()
    int tp1_count = 0, tp2_count = 0, tp3_count = 0, sl_count = 0;
    double total_gross_profit = 0.0, total_gross_loss = 0.0;
    int winning_deals = 0, losing_deals = 0;
+
+   // Daily Stats Storage
+   DailyStat daily_array[];
+   int daily_count = 0;
 
    for(int i = 0; i < total_deals; i++)
    {
@@ -267,11 +281,40 @@ void GeneratePerformanceAnalytics()
 
       ulong pos_id = HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
       string entry_comment = GetEntryComment(pos_id);
+      datetime deal_time   = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+      string date_key      = TimeToString(deal_time, TIME_DATE);
+
+      // Record Daily PnL Stats
+      int found_idx = -1;
+      for(int d = 0; d < daily_count; d++)
+      {
+         if(daily_array[d].date_str == date_key)
+         {
+            found_idx = d;
+            break;
+         }
+      }
+      if(found_idx < 0)
+      {
+         ArrayResize(daily_array, daily_count + 1);
+         daily_array[daily_count].date_str    = date_key;
+         daily_array[daily_count].day_time    = deal_time;
+         daily_array[daily_count].net_pnl     = 0.0;
+         daily_array[daily_count].trade_count = 0;
+         daily_array[daily_count].wins        = 0;
+         daily_array[daily_count].losses      = 0;
+         found_idx = daily_count;
+         daily_count++;
+      }
+
+      daily_array[found_idx].net_pnl += profit;
+      daily_array[found_idx].trade_count++;
 
       if(profit > 0)
       {
          total_gross_profit += profit;
          winning_deals++;
+         daily_array[found_idx].wins++;
 
          if(StringFind(entry_comment, "TP1") >= 0 || StringFind(entry_comment, "_TP1") >= 0)
             tp1_count++;
@@ -287,9 +330,9 @@ void GeneratePerformanceAnalytics()
          total_gross_loss += MathAbs(profit);
          losing_deals++;
          sl_count++;
+         daily_array[found_idx].losses++;
 
          // 🩺 FORENSIC AUDIT OF WHY SL WAS HIT
-         datetime deal_time = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
          double deal_price  = HistoryDealGetDouble(ticket, DEAL_PRICE);
          long deal_type     = HistoryDealGetInteger(ticket, DEAL_TYPE);
 
@@ -338,12 +381,35 @@ void GeneratePerformanceAnalytics()
    double win_rate = (closed_tickets > 0) ? ((double)winning_deals / closed_tickets) * 100.0 : 0.0;
    double profit_factor = (total_gross_loss > 0) ? (total_gross_profit / total_gross_loss) : (total_gross_profit > 0 ? 99.99 : 0.0);
 
+   // Sort Daily Stats for Top 10 Best and Top 10 Worst Days
+   for(int a = 0; a < daily_count - 1; a++)
+   {
+      for(int b = a + 1; b < daily_count; b++)
+      {
+         if(daily_array[b].net_pnl > daily_array[a].net_pnl)
+         {
+            DailyStat temp = daily_array[a];
+            daily_array[a] = daily_array[b];
+            daily_array[b] = temp;
+         }
+      }
+   }
+
+   int winning_days = 0, losing_days = 0;
+   double avg_daily_pnl = 0.0;
+   for(int d = 0; d < daily_count; d++)
+   {
+      if(daily_array[d].net_pnl > 0) winning_days++;
+      else if(daily_array[d].net_pnl < 0) losing_days++;
+   }
+   if(daily_count > 0) avg_daily_pnl = net_profit / daily_count;
+
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
    string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? "MODE 1 BE ON TP1" : "FIXED SL";
 
    Print("=========================================================================================");
-   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PERSONAL ENGINE v3.50 - %s EXEC / %s MACRO / %s)", exec_str, htf_str, trail_str);
+   PrintFormat(" PERFORMANCE & ANALYTICS REPORT: MODEL 2 (PERSONAL ENGINE v3.80 - %s EXEC / %s MACRO / %s)", exec_str, htf_str, trail_str);
    Print("=========================================================================================");
    PrintFormat(" Starting Account Balance : $%.2f USD", initial_balance);
    PrintFormat(" Final Account Balance    : $%.2f USD", end_balance);
@@ -363,6 +429,36 @@ void GeneratePerformanceAnalytics()
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" PROFIT FACTOR           : %.2f", profit_factor);
    PrintFormat(" Gross Profit / Gross Loss: +$%.2f / -$%.2f", total_gross_profit, total_gross_loss);
+   Print("-----------------------------------------------------------------------------------------");
+   PrintFormat(" 📅 DAILY PERFORMANCE SUMMARY (%d Active Trading Days):", daily_count);
+   PrintFormat("   - Winning Days         : %d Days (%.1f%% Daily Win Rate)", winning_days, daily_count > 0 ? ((double)winning_days/daily_count)*100.0 : 0.0);
+   PrintFormat("   - Losing Days          : %d Days", losing_days);
+   PrintFormat("   - Average Daily PnL    : %s$%.2f USD / day", avg_daily_pnl >= 0 ? "+" : "-", MathAbs(avg_daily_pnl));
+   Print("-----------------------------------------------------------------------------------------");
+   Print(" 🟢 TOP 10 BEST TRADING DAYS (HIGHEST PnL):");
+   int best_limit = MathMin(10, daily_count);
+   for(int k = 0; k < best_limit; k++)
+   {
+      if(daily_array[k].net_pnl > 0)
+      {
+         PrintFormat("   #%d [%s] Net PnL: +$%.2f USD | Trades: %d (Wins: %d / Losses: %d)",
+                     k + 1, daily_array[k].date_str, daily_array[k].net_pnl,
+                     daily_array[k].trade_count, daily_array[k].wins, daily_array[k].losses);
+      }
+   }
+   Print("-----------------------------------------------------------------------------------------");
+   Print(" 🔴 TOP 10 WORST TRADING DAYS (HIGHEST DRAWDOWN):");
+   int worst_printed = 0;
+   for(int w = daily_count - 1; w >= 0 && worst_printed < 10; w--)
+   {
+      if(daily_array[w].net_pnl < 0)
+      {
+         worst_printed++;
+         PrintFormat("   #%d [%s] Net PnL: -$%.2f USD | Trades: %d (Wins: %d / Losses: %d)",
+                     worst_printed, daily_array[w].date_str, MathAbs(daily_array[w].net_pnl),
+                     daily_array[w].trade_count, daily_array[w].wins, daily_array[w].losses);
+      }
+   }
    Print("=========================================================================================");
 }
 
