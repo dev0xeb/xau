@@ -58,7 +58,8 @@ input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance (Pips / $12.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input ENUM_TRAILING_MODE InpTrailingMode      = TRAILING_MODE_FIXED;       // Trailing Stop Mode (Fixed SL Baseline)
+input ENUM_TRAILING_MODE InpTrailingMode  = TRAILING_MODE_BE_TP1; // Trailing Stop Mode (0=Fixed SL, 1=BE+Buffer on TP1)
+input double   InpBEBufferPips     = 5.0;              // Trailing SL Buffer above/below Entry after TP1 (Pips / 5.0 = $0.50)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
 input group "=== Strategy Parameters ==="
@@ -106,9 +107,9 @@ int OnInit()
 
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
-   string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? "MODE 1 BE ON TP1" : "FIXED SL";
+   string trail_str = (InpTrailingMode == TRAILING_MODE_BE_TP1) ? StringFormat("MODE 1 BE + %.1f PIPS ON TP1", InpBEBufferPips) : "FIXED SL";
 
-   PrintFormat("[INIT] Model 2 Personal Engine v3.50 initialized! Exec TF: %s | Macro TF: %s | Trailing: %s",
+   PrintFormat("[INIT] Model 2 Personal Engine v3.60 initialized! Exec TF: %s | Macro TF: %s | Trailing: %s",
                exec_str, htf_str, trail_str);
    return(INIT_SUCCEEDED);
 }
@@ -173,7 +174,8 @@ void ManageTrailingStops()
 
    if((InpTrailingMode == TRAILING_MODE_BE_TP1) && (my_positions > 0 && my_positions < 3 && !tp1_open))
    {
-      double new_sl = (pos_type == POSITION_TYPE_BUY) ? (entry_price_level + 0.50) : (entry_price_level - 0.50);
+      double buffer_dollars = InpBEBufferPips * 0.10;
+      double new_sl = (pos_type == POSITION_TYPE_BUY) ? (entry_price_level + buffer_dollars) : (entry_price_level - buffer_dollars);
 
       for(int i = total - 1; i >= 0; i--)
       {
