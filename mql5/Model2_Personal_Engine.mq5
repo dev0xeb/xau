@@ -404,7 +404,7 @@ void GeneratePerformanceAnalytics()
       }
    }
    Print("-----------------------------------------------------------------------------------------");
-   Print(" 🔴 TOP 10 WORST TRADING DAYS (HIGHEST DRAWDOWN):");
+   Print(" 🔴 TOP 10 WORST TRADING DAYS (WORST PnL / HIGHEST LOSSES):");
    int worst_printed = 0;
    for(int w = daily_count - 1; w >= 0 && worst_printed < 10; w--)
    {

@@ -312,6 +312,18 @@ void GeneratePerformanceAnalytics()
    PrintFormat(" Total Net Profit ($)     : %s$%.2f USD (%s%.2f%% Return)", 
                net_profit >= 0 ? "+" : "-", MathAbs(net_profit), net_profit >= 0 ? "+" : "-", ret_pct);
    Print("-----------------------------------------------------------------------------------------");
+   Print(" 🔴 TOP 10 WORST TRADING DAYS (WORST PnL / HIGHEST LOSSES):");
+   int worst_printed = 0;
+   for(int w = daily_count - 1; w >= 0 && worst_printed < 10; w--)
+   {
+      if(daily_array[w].net_pnl < 0)
+      {
+         worst_printed++;
+         PrintFormat("   #%d [%s] Net PnL: -$%.2f USD | Trades: %d (Wins: %d / Losses: %d)",
+                     worst_printed, daily_array[w].date_str, MathAbs(daily_array[w].net_pnl),
+                     daily_array[w].trade_count, daily_array[w].wins, daily_array[w].losses);
+      }
+   }Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" TOTAL SETUPS TRIGGERED   : %d Setups (%d Total Placed Tickets)", total_setups_count, total_tickets_count);
    PrintFormat(" CLOSED TICKETS ANALYZED  : %d Tickets", closed_tickets);
    PrintFormat("   - Winning Tickets      : %d Tickets (%.1f%% Win Rate)", winning_deals, win_rate);
