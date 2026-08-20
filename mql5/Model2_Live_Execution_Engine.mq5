@@ -37,6 +37,13 @@ enum ENUM_TRAILING_MODE
    TRAILING_MODE_BE_TP1 = 1  // Move SL to Entry + Buffer Pips when TP1 Hits
 };
 
+enum ENUM_SESSION_MODE
+{
+   SESSION_LONDON_NY = 0, // Prime London & NY Session (06:00 to 17:00 UTC)
+   SESSION_ALL_DAY   = 1, // 24-Hour All-Day Trading (00:00 to 24:00 UTC) [Default]
+   SESSION_CUSTOM    = 2  // Custom Hours (Uses InpStartHourUTC & InpEndHourUTC)
+};
+
 //--- Inputs
 input group "=== Timeframe Configuration ==="
 input ENUM_EXEC_TIMEFRAME InpExecutionTimeframe = EXEC_PERIOD_M5;   // Setup Execution Timeframe
@@ -58,10 +65,12 @@ input ENUM_TRAILING_MODE InpTrailingMode  = TRAILING_MODE_FIXED;  // Trailing St
 input double   InpBEBufferPips     = 5.0;              // Trailing SL Buffer after TP1 (Pips / $0.50)
 input int      InpMagicNumber      = 2001;             // Magic Number for Live Execution
 
-input group "=== Strategy Parameters ==="
-input double   InpFVGMinPips       = 1.5;              // Minimum Fair Value Gap Size ($0.15)
-input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC)
-input int      InpEndHourUTC       = 17;               // Session End Hour (UTC)
+input group "=== Session & Strategy Parameters ==="
+input ENUM_SESSION_MODE InpSessionMode     = SESSION_ALL_DAY;   // Session Trading Mode (24-Hour All-Day Trading)
+input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC) [Used if Custom]
+input int      InpEndHourUTC       = 17;               // Session End Hour (UTC) [Used if Custom]
+input double   InpFVGMinPips       = 2.5;              // Minimum Fair Value Gap Size ($0.25)
+input bool     InpRequireEMASlope  = true;             // Require M5 EMA21 Active Slope (Filters Out Sideways Range Chop)
 input bool     InpSendLiveAlerts   = true;             // Send Native MT5 Sound/Popup Alerts on Entry
 
 //--- Global Variables & CTrade Instance
@@ -200,10 +209,25 @@ void OnTick()
 
    MqlDateTime dt;
    TimeGMT(dt);
-   if(dt.hour < InpStartHourUTC || dt.hour >= InpEndHourUTC)
+
+   bool session_active = false;
+   if(InpSessionMode == SESSION_ALL_DAY)
    {
-      Comment(StringFormat("MODEL 2 LIVE ENGINE [OFF-SESSION]\nCurrent UTC Time: %02d:%02d | Active Trading Hours: %02d:00 - %02d:00 UTC",
-              dt.hour, dt.min, InpStartHourUTC, InpEndHourUTC));
+      session_active = true; // 24-Hour All-Day Trading Enabled!
+   }
+   else if(InpSessionMode == SESSION_LONDON_NY)
+   {
+      session_active = (dt.hour >= 6 && dt.hour < 17);
+   }
+   else if(InpSessionMode == SESSION_CUSTOM)
+   {
+      session_active = (dt.hour >= InpStartHourUTC && dt.hour < InpEndHourUTC);
+   }
+
+   if(!session_active)
+   {
+      Comment(StringFormat("MODEL 2 LIVE ENGINE [OFF-SESSION]\nCurrent UTC Time: %02d:%02d | Mode: %s",
+              dt.hour, dt.min, EnumToString(InpSessionMode)));
       return;
    }
 
@@ -239,8 +263,8 @@ void OnTick()
    bool htf_bear = (htf_close[0] < htf_ema21[0]) && (htf_ema21[0] < htf_ema50[0]);
 
    string trend_str = htf_bull ? "BULLISH UPTREND" : (htf_bear ? "BEARISH DOWNTREND" : "NEUTRAL");
-   Comment(StringFormat("MODEL 2 LIVE ENGINE [ACTIVE MONITORING]\nSymbol: %s | Ask: $%.2f | Bid: $%.2f | Spread: $%.2f\nMacro Trend: %s",
-           _Symbol, ask, bid, current_spread_dollars, trend_str));
+   Comment(StringFormat("MODEL 2 LIVE ENGINE [ACTIVE MONITORING]\nSymbol: %s | Ask: $%.2f | Bid: $%.2f | Spread: $%.2f\nMacro Trend: %s | Session: %s",
+           _Symbol, ask, bid, current_spread_dollars, trend_str, EnumToString(InpSessionMode)));
 
    if(!htf_bull && !htf_bear) return;
 
@@ -279,6 +303,17 @@ void OnTick()
 
    bool base_buy  = htf_bull && bull_fvg && bull_sweep && (close_1 > exec_e21_val);
    bool base_sell = htf_bear && bear_fvg && bear_sweep && (close_1 < exec_e21_val);
+
+   // 📈 EMA21 SLOPE MOMENTUM FILTER
+   if(InpRequireEMASlope)
+   {
+      double exec_e21_3 = exec_ema21[3];
+      bool buy_slope  = (exec_e21_val - exec_e21_3) >= 0.20;
+      bool sell_slope = (exec_e21_3 - exec_e21_val) >= 0.20;
+      if(base_buy && !buy_slope) return;
+      if(base_sell && !sell_slope) return;
+   }
+
    if(!base_buy && !base_sell) return;
 
    double entry_price = base_buy ? ask : bid;

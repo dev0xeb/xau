@@ -70,11 +70,11 @@ input double   InpBEBufferPips     = 5.0;              // Trailing SL Buffer abo
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
 input group "=== Session & Strategy Parameters ==="
-input ENUM_SESSION_MODE InpSessionMode     = SESSION_LONDON_NY; // Session Trading Mode (All-Day vs London/NY)
+input ENUM_SESSION_MODE InpSessionMode     = SESSION_ALL_DAY;   // Session Trading Mode (SESSION_ALL_DAY = 24-Hour Trading)
 input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC) [Used if Custom]
 input int      InpEndHourUTC       = 17;               // Session End Hour (UTC) [Used if Custom]
-input double   InpFVGMinPips       = 1.5;              // Minimum Fair Value Gap Size ($0.15)
-input bool     InpRequireEMASlope  = false;            // Require M5 EMA21 Active Slope (Filters Out Sideways Range Chop)
+input double   InpFVGMinPips       = 2.5;              // Minimum Fair Value Gap Size ($0.25)
+input bool     InpRequireEMASlope  = true;             // Require M5 EMA21 Active Slope (Filters Out Sideways Range Chop)
 input bool     InpAsianSweepOnly   = false;            // Require Asian High/Low Liquidity Sweep (Disabled)
 
 input group "=== Visual Playback Settings ==="
