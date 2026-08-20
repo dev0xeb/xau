@@ -52,7 +52,7 @@ input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
 input group "=== Machine Learning & Quality Gate ==="
-input double   InpMLGateThreshold  = 0.70;             // ML Quality Gate Minimum Probability (0.70 = 70.0% Ultra-Sniper)
+input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0% Champion)
 
 input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
@@ -64,7 +64,7 @@ input int      InpMagicNumber      = 2001;             // Magic Number (Personal
 
 input group "=== Strategy Parameters ==="
 input double   InpFVGMinPips       = 1.5;              // Minimum Fair Value Gap Size ($0.15)
-input bool     InpAsianSweepOnly   = true;             // Require Asian High/Low Liquidity Sweep (Enforced Champion Confluence)
+input bool     InpAsianSweepOnly   = false;            // Require Asian High/Low Liquidity Sweep (Disabled by default)
 input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC)
 input int      InpEndHourUTC       = 17;               // Session End Hour (UTC)
 
