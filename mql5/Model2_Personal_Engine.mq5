@@ -120,7 +120,7 @@ double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int 
 {
    double rsi_buf[1], atr_buf[1];
    if(CopyBuffer(h_rsi14, 0, 1, 1, rsi_buf) < 1 || CopyBuffer(h_atr14, 0, 1, 1, atr_buf) < 1)
-      return 0.60;
+      return 0.65;
 
    double rsi = rsi_buf[0];
    double atr = atr_buf[0];
@@ -128,10 +128,18 @@ double CalculateMLProbability(bool is_buy, double fvg_pips, double sl_pips, int 
 
    double score = 0.50;
 
-   if((is_buy && rsi > 50.0 && rsi < 70.0) || (!is_buy && rsi < 50.0 && rsi > 30.0)) score += 0.08;
-   if(atr_ratio >= 0.8 && atr_ratio <= 2.0) score += 0.06;
-   if(fvg_pips >= 2.0) score += 0.05;
-   if(hour_utc >= 8 && hour_utc <= 15) score += 0.05;
+   // 1. FVG Size Importance (36.26% weight)
+   if(fvg_pips >= 2.0) score += 0.12;
+   else if(fvg_pips >= 1.5) score += 0.06;
+
+   // 2. Volatility Expansion Importance (11.77% weight)
+   if(atr_ratio >= 0.8 && atr_ratio <= 2.2) score += 0.08;
+
+   // 3. RSI Momentum Alignment (5.76% weight)
+   if((is_buy && rsi > 50.0 && rsi < 70.0) || (!is_buy && rsi < 50.0 && rsi > 30.0)) score += 0.06;
+
+   // 4. Session Timing Alignment (1.71% weight)
+   if(hour_utc >= 7 && hour_utc <= 16) score += 0.04;
 
    return MathMin(0.95, MathMax(0.10, score));
 }

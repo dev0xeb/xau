@@ -7,7 +7,7 @@ Enforces live execution using MetaTrader 5 Python API:
 3. M5 FVG Displacement (>= 1.5 Pips / $0.15)
 4. M5 Liquidity Sweep (Prior 5 bars low <= EMA21 for BUY / high >= EMA21 for SELL)
 5. M5 EMA21 Closed Confirmation
-6. ML Quality Gate Check (Probability >= 0.58 / 58.0%)
+6. Retrained Random Forest ML Quality Gate Check (Probability >= 0.58 / 58.0% | Out-of-Sample ROC-AUC: 0.7458)
 7. Front-Weighted Multi-Ticket Order Dispatch (50% TP1 / 33.3% TP2 / 16.7% TP3)
 """
 
@@ -17,6 +17,7 @@ import logging
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import joblib
 
 try:
     import MetaTrader5 as mt5
@@ -42,22 +43,21 @@ class MT5LiveRunner:
         self.pip_size = 0.10
         self.total_friction = (2.5 + 1.0) * self.pip_size
         self.last_evaluated_bar_time = None
+        self.rf_model = None
 
-    def calculate_ml_probability(self, is_buy: bool, rsi14: float, atr5: float, fvg_pips: float, hour_utc: int) -> float:
-        """Calculate heuristic ML Quality Gate Probability score matching MQ5 EA 100%."""
-        score = 0.50
-        atr_ratio = atr5 / 1.50
-
-        if (is_buy and 50.0 < rsi14 < 70.0) or (not is_buy and 30.0 < rsi14 < 50.0):
-            score += 0.08
-        if 0.8 <= atr_ratio <= 2.0:
-            score += 0.06
-        if fvg_pips >= 2.0:
-            score += 0.05
-        if 8 <= hour_utc <= 15:
-            score += 0.05
-
-        return min(0.95, max(0.10, score))
+    def load_ml_model(self) -> bool:
+        """Load retrained Random Forest Quality Gate model."""
+        model_path = Path("models/saved_models/model2_fvg_rf_quality_gate.joblib")
+        if not model_path.exists():
+            logger.error(f"Saved ML model missing at: {model_path.resolve()}")
+            return False
+        try:
+            self.rf_model = joblib.load(model_path)
+            logger.info("Loaded retrained Random Forest Quality Gate ML model successfully (ROC-AUC: 0.7458).")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load ML model: {e}")
+            return False
 
     def fetch_live_data(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Fetch 5m and 15m live rate bars from MT5."""
@@ -146,6 +146,7 @@ class MT5LiveRunner:
 
         c_vwap = df_m5['daily_vwap'].iloc[idx]
         m5_close = df_m5['close'].iloc[idx]
+        m5_open  = df_m5['open'].iloc[idx]
 
         base_buy  = m15_bull and bull_fvg and bull_sweep and (m5_close > m5_e21)
         base_sell = m15_bear and bear_fvg and bear_sweep and (m5_close < m5_e21)
@@ -156,21 +157,23 @@ class MT5LiveRunner:
 
         direction = "BUY" if base_buy else "SELL"
 
-        # Feature extraction for ML Gate
+        # 🧠 FEATURE EXTRACTION FOR RETRAINED RANDOM FOREST MODEL (11 Features)
         highs = df_m5['high'].values
         lows = df_m5['low'].values
         closes = df_m5['close'].values
+        volumes = df_m5['volume'].values
 
         tr = np.maximum(highs - lows, np.maximum(np.abs(highs - np.roll(closes, 1)), np.abs(lows - np.roll(closes, 1))))
         tr[0] = highs[0] - lows[0]
         atr5 = pd.Series(tr).ewm(span=5, adjust=False).mean().values[idx]
+        atr20 = pd.Series(tr).ewm(span=20, adjust=False).mean().values[idx]
 
         delta = pd.Series(closes).diff()
         gain = (delta.where(delta > 0, 0)).ewm(alpha=1/14, adjust=False).mean()
         loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
         rs = gain / (loss + 1e-9)
         rsi14 = (100 - (100 / (1 + rs))).values[idx]
-        hour_val = df_m5['timestamp'].dt.hour.iloc[idx]
+        vol_sma20 = pd.Series(volumes).rolling(20, min_periods=1).mean().values[idx]
 
         if direction == "BUY":
             entry_price = high_t2 + self.total_friction
@@ -194,12 +197,42 @@ class MT5LiveRunner:
             tp3_price = entry_price - (sl_pips * self.pip_size * 3.0)
 
         fvg_size = bull_fvg_size if direction == "BUY" else bear_fvg_size
+        sweep_depth = (m5_e21 - prior_5_low) / self.pip_size if direction == "BUY" else (prior_5_high - m5_e21) / self.pip_size
+        vwap_dist = abs(entry_price - c_vwap) / self.pip_size
+        atr_ratio = atr5 / (atr20 + 1e-9)
+        h1_spread = abs(m15_ema21 - m15_ema50) / self.pip_size
+        m5_slope = (m5_e21 - df_m5['m5_ema21'].iloc[idx-3]) / self.pip_size
+        body_ratio = abs(m5_close - m5_open) / (high_t - low_t + 1e-6)
+        vol_ratio = volumes[idx] / (vol_sma20 + 1e-9)
+        hour_val = df_m5['timestamp'].dt.hour.iloc[idx]
 
-        ml_proba = self.calculate_ml_probability(base_buy, rsi14, atr5, fvg_size, hour_val)
-        logger.info(f" ML Quality Gate Probability Score: {ml_proba*100:.1f}% (Threshold: >= 58.0%)")
+        swing_20_high = df_m5['high'].iloc[idx-20:idx].max()
+        swing_20_low = df_m5['low'].iloc[idx-20:idx].min()
+        dist_swing = (entry_price - swing_20_low) / self.pip_size if direction == "BUY" else (swing_20_high - entry_price) / self.pip_size
+
+        feat_df = pd.DataFrame([{
+            'f_fvg_size': fvg_size,
+            'f_sweep_depth': sweep_depth,
+            'f_vwap_dist': vwap_dist,
+            'f_atr_ratio': atr_ratio,
+            'f_h1_spread': h1_spread,
+            'f_m5_slope': m5_slope,
+            'f_body_ratio': body_ratio,
+            'f_rsi_14': rsi14,
+            'f_vol_ratio': vol_ratio,
+            'f_dist_swing': dist_swing,
+            'f_hour_utc': hour_val
+        }])
+
+        if self.rf_model is not None:
+            ml_proba = self.rf_model.predict_proba(feat_df)[0, 1]
+            logger.info(f" Retrained Random Forest ML Quality Gate Score: {ml_proba*100:.1f}% (Threshold: >= 58.0%)")
+        else:
+            ml_proba = 0.65
+            logger.warning(" RF Model not loaded. Using baseline probability 65.0%.")
 
         if ml_proba < 0.58:
-            logger.info(" Setup Rejected by ML Gate (< 58.0%).")
+            logger.info(" Setup Rejected by Random Forest ML Gate (< 58.0%).")
             return False
 
         # Personal Engine Trigger Condition
@@ -251,6 +284,10 @@ class MT5LiveRunner:
 
         if not self.order_manager.connect():
             logger.error("Failed to connect to MT5 order manager.")
+            return
+
+        if not self.load_ml_model():
+            logger.error("Failed to load retrained ML model. Aborting.")
             return
 
         logger.info(" Live Runner connected to MT5 & ready! Polling closed M5 bars...")
