@@ -36,6 +36,13 @@ enum ENUM_TRAILING_MODE
    TRAILING_MODE_BE_TP1   = 1  // Move SL to Break-Even when TP1 Hits
 };
 
+enum ENUM_SESSION_MODE
+{
+   SESSION_LONDON_NY = 0, // Prime London & NY Session (06:00 to 17:00 UTC) [Default]
+   SESSION_ALL_DAY   = 1, // 24-Hour All-Day Trading (00:00 to 24:00 UTC)
+   SESSION_CUSTOM    = 2  // Custom Hours (Uses InpStartHourUTC & InpEndHourUTC)
+};
+
 //--- Input Parameters
 input group "=== Strategy Timeframe Selection ==="
 input ENUM_EXEC_TIMEFRAME   InpExecutionTimeframe= EXEC_PERIOD_M5;       // Execution Timeframe (M5 Recommended)
@@ -62,11 +69,13 @@ input ENUM_TRAILING_MODE InpTrailingMode  = TRAILING_MODE_FIXED;  // Trailing St
 input double   InpBEBufferPips     = 5.0;              // Trailing SL Buffer above/below Entry after TP1 (Pips / 5.0 = $0.50)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
-input group "=== Strategy Parameters ==="
+input group "=== Session & Strategy Parameters ==="
+input ENUM_SESSION_MODE InpSessionMode     = SESSION_LONDON_NY; // Session Trading Mode (All-Day vs London/NY)
+input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC) [Used if Custom]
+input int      InpEndHourUTC       = 17;               // Session End Hour (UTC) [Used if Custom]
 input double   InpFVGMinPips       = 1.5;              // Minimum Fair Value Gap Size ($0.15)
-input bool     InpAsianSweepOnly   = false;            // Require Asian High/Low Liquidity Sweep (Disabled by default)
-input int      InpStartHourUTC     = 6;                // Session Start Hour (UTC)
-input int      InpEndHourUTC       = 17;               // Session End Hour (UTC)
+input bool     InpRequireEMASlope  = false;            // Require M5 EMA21 Active Slope (Filters Out Sideways Range Chop)
+input bool     InpAsianSweepOnly   = false;            // Require Asian High/Low Liquidity Sweep (Disabled)
 
 input group "=== Visual Playback Settings ==="
 input color    InpBuyColor         = clrDodgerBlue;    // Buy Order Arrow Color
@@ -427,9 +436,25 @@ void OnTick()
 
    MqlDateTime dt;
    TimeGMT(dt);
-   if(dt.hour < InpStartHourUTC || dt.hour >= InpEndHourUTC)
+
+   bool session_active = false;
+   if(InpSessionMode == SESSION_ALL_DAY)
    {
-      Comment("MODEL 2 PERSONAL ENGINE [OFF-SESSION]\nCurrent Time: ", dt.hour, ":", dt.min, " UTC");
+      session_active = true; // 24-Hour All-Day Trading Enabled!
+   }
+   else if(InpSessionMode == SESSION_LONDON_NY)
+   {
+      session_active = (dt.hour >= 6 && dt.hour < 17);
+   }
+   else if(InpSessionMode == SESSION_CUSTOM)
+   {
+      session_active = (dt.hour >= InpStartHourUTC && dt.hour < InpEndHourUTC);
+   }
+
+   if(!session_active)
+   {
+      Comment(StringFormat("MODEL 2 PERSONAL ENGINE [OFF-SESSION]\nCurrent Time: %02d:%02d UTC | Mode: %s",
+              dt.hour, dt.min, EnumToString(InpSessionMode)));
       return;
    }
 
@@ -466,7 +491,8 @@ void OnTick()
    string exec_str = (InpExecutionTimeframe == EXEC_PERIOD_M5) ? "M5" : "M15";
    string htf_str  = (InpMacroTimeframe == HTF_PERIOD_M15) ? "M15" : ((InpMacroTimeframe == HTF_PERIOD_M30) ? "M30" : "H1");
    string trend_str = htf_bull ? "BULLISH UPTREND" : (htf_bear ? "BEARISH DOWNTREND" : "NEUTRAL");
-   Comment(StringFormat("MODEL 2 PERSONAL ENGINE [ACTIVE]\nExec TF: %s | %s Macro Trend: %s", exec_str, htf_str, trend_str));
+   Comment(StringFormat("MODEL 2 PERSONAL ENGINE [ACTIVE]\nExec TF: %s | %s Macro Trend: %s | Mode: %s",
+           exec_str, htf_str, trend_str, EnumToString(InpSessionMode)));
 
    if(!htf_bull && !htf_bear) return;
 
@@ -508,6 +534,16 @@ void OnTick()
    bool base_sell = htf_bear && bear_fvg && bear_sweep && (close_1 < exec_e21_val);
 
    if(!base_buy && !base_sell) return;
+
+   // 📈 EMA21 SLOPE MOMENTUM FILTER (Filters out sideways range chop)
+   if(InpRequireEMASlope)
+   {
+      double exec_e21_3 = exec_ema21[3];
+      bool buy_slope  = (exec_e21_val - exec_e21_3) >= 0.20;
+      bool sell_slope = (exec_e21_3 - exec_e21_val) >= 0.20;
+      if(base_buy && !buy_slope) return;
+      if(base_sell && !sell_slope) return;
+   }
 
    // 🌏 ASIAN HIGH/LOW LIQUIDITY SWEEP GUARDRAIL (78.6% Win Rate / 7.86 PF)
    if(InpAsianSweepOnly)
