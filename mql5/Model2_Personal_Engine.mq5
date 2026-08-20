@@ -58,7 +58,7 @@ input group "=== Risk & Guardrail Limits ==="
 input double   InpMinSLPips        = 25.0;             // Minimum SL Distance Floor (Pips / $2.50)
 input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance (Pips / $12.00)
 input double   InpMaxSpreadPips    = 3.0;              // Maximum Allowed Spread (Pips / $0.30 - Rejects Spread Spikes)
-input ENUM_TRAILING_MODE InpTrailingMode  = TRAILING_MODE_BE_TP1; // Trailing Stop Mode (0=Fixed SL, 1=BE+Buffer on TP1)
+input ENUM_TRAILING_MODE InpTrailingMode  = TRAILING_MODE_FIXED;  // Trailing Stop Mode (0=Fixed SL [Champion], 1=BE+Buffer on TP1)
 input double   InpBEBufferPips     = 5.0;              // Trailing SL Buffer above/below Entry after TP1 (Pips / 5.0 = $0.50)
 input int      InpMagicNumber      = 2001;             // Magic Number (Personal Engine)
 
