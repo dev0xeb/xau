@@ -1,7 +1,0 @@
-Metric,Value,Sample Size,Interpretation
-Post-Sweep Reversal Rate,80.0%,5 Session Sweeps,High probability reaction back across range
-Post-Sweep Continuation Rate,60.0%,5 Session Sweeps,Trend continuation probability when aligned with Daily Open
-15m ORB Break Rate,80.0%,5 Trading Days,Strong opening range expansion frequency
-15m ORB Continuation (>50 pips),100.0%,4 Breakout Days,Consistent expansion post-ORB break
-5m Displacement Candle Continuation,75.5%,387 Displacement Candles,Immediate trend continuation after >= $3.00 body
-5m FVG Full Retracement Rate,34.4%,387 Displacement Candles,Partial mitigation probability before continuation

@@ -1,8 +1,0 @@
-# XAUUSD Scalp Lab - Sessions Configuration
-sessions:
-  london_open_utc: "07:00-11:00"
-  ny_open_utc: "13:00-17:00"
-  asian_quiet_utc: "00:00-06:00"
-active_trading_windows:
-  - london_open_utc
-  - ny_open_utc

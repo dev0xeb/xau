@@ -11,7 +11,7 @@
 //--- Script Inputs
 input group "=== Pattern Discovery & Timeframe Inputs ==="
 input ENUM_TIMEFRAMES InpResearchTimeframe = PERIOD_M5;            // Primary Research Timeframe (Default: M5)
-input int             InpBarsToAnalyze     = 3000;                 // Number of Bars to Inspect & Draw Visually
+input int             InpBarsToAnalyze     = 400000;               // Number of Bars to Inspect (400,000 = 5 Full Years)
 input double          InpMinFVGPips        = 1.5;                  // FVG Size Floor ($0.15)
 input double          InpTargetRR          = 2.0;                  // Target R:R for Strategy Discovery
 
@@ -240,8 +240,8 @@ void OnStart()
             patterns[p].losses++;
             patterns[p].gross_pips_loss += (sl_dist / _Point);
 
-            // Draw Visual Inefficiency Marker for Baseline Strategy Losses
-            if(p == 4 && InpDrawInefficiencies)
+            // Draw Visual Inefficiency Marker for Baseline Strategy Losses (Recent 1000 bars)
+            if(p == 4 && InpDrawInefficiencies && i <= 1000)
             {
                string marker_name = StringFormat("DISCOV_INEFFICIENCY_%d", i);
                DrawMarker(marker_name, rates[i].time, is_buy ? rates[i].low - 0.50 : rates[i].high + 0.50, 162, clrOrangeRed, "INEFFICIENCY [LOSS]");
@@ -249,8 +249,8 @@ void OnStart()
          }
       }
 
-      // Draw Visual Boxes for Patterns
-      if(InpDrawPatterns && InpDrawOrderBlocks)
+      // Draw Visual Boxes for Patterns (Recent 1000 bars)
+      if(InpDrawPatterns && InpDrawOrderBlocks && i <= 1000)
       {
          if(valid_bull_fvg)
          {

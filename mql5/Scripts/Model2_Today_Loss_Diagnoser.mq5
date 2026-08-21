@@ -147,13 +147,20 @@ void OnStart()
          PrintFormat(" [%s] %s SETUP -> RESULT: LOSS (-1.0x R) | ROOT CAUSE: %s",
                      time_str, setup_buy ? "BUY" : "SELL", root_cause);
 
-         // Draw Warning Marker on MT5 Chart
+         // Draw Warning Marker + Text Label on MT5 Chart
          string obj_name = StringFormat("DIAG_LOSS_%d", i);
          ObjectDelete(0, obj_name);
-         ObjectCreate(0, obj_name, OBJ_ARROW, 0, rates[i].time, setup_buy ? rates[i].low - 0.50 : rates[i].high + 0.50);
+         ObjectCreate(0, obj_name, OBJ_ARROW, 0, rates[i].time, setup_buy ? rates[i].low - 0.60 : rates[i].high + 0.60);
          ObjectSetInteger(0, obj_name, OBJPROP_ARROWCODE, 242);
          ObjectSetInteger(0, obj_name, OBJPROP_COLOR, clrRed);
          ObjectSetInteger(0, obj_name, OBJPROP_WIDTH, 3);
+
+         string txt_name = obj_name + "_txt";
+         ObjectDelete(0, txt_name);
+         ObjectCreate(0, txt_name, OBJ_TEXT, 0, rates[i].time, setup_buy ? rates[i].low - 1.20 : rates[i].high + 1.20);
+         ObjectSetString(0, txt_name, OBJPROP_TEXT, "LOSS: " + root_cause);
+         ObjectSetInteger(0, txt_name, OBJPROP_COLOR, clrOrangeRed);
+         ObjectSetInteger(0, txt_name, OBJPROP_FONTSIZE, 8);
       }
    }
 

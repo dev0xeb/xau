@@ -1,9 +1,0 @@
-# XAUUSD Scalp Lab - Risk Configuration
-max_portfolio_heat_pct: 5.0
-max_daily_drawdown_pct: 5.0
-max_concurrent_scalps: 2
-max_directional_lots: 1.0
-adaptive_risk_tiers:
-  priority_execute: 1.50
-  ready: 1.00
-  watch: 0.50
