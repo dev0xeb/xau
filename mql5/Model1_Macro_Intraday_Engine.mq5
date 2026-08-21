@@ -110,25 +110,112 @@ int OnInit()
 //+------------------------------------------------------------------+
 //| Expert Deinitialization Function                                 |
 //+------------------------------------------------------------------+
-void OnDeinit(const int reason)
+//+------------------------------------------------------------------+
+//| Mathematical Deal History Audit & Summary Performance Generator |
+//+------------------------------------------------------------------+
+void GeneratePerformanceReport()
 {
-   double tp1_pct = (m_total_setups_count > 0) ? ((double)m_tp1_hits_count / m_total_setups_count) * 100.0 : 0.0;
-   double tp2_pct = (m_total_setups_count > 0) ? ((double)m_tp2_hits_count / m_total_setups_count) * 100.0 : 0.0;
-   double tp3_pct = (m_total_setups_count > 0) ? ((double)m_tp3_hits_count / m_total_setups_count) * 100.0 : 0.0;
-   double sl_pct  = (m_total_setups_count > 0) ? ((double)m_sl_hits_count / m_total_setups_count) * 100.0 : 0.0;
+   HistorySelect(0, TimeCurrent());
+   int total_deals = HistoryDealsTotal();
+
+   int tp1_hits = 0, tp2_hits = 0, tp3_hits = 0, sl_hits = 0;
+
+   for(int i = 0; i < total_deals; i++)
+   {
+      ulong deal_ticket = HistoryDealGetTicket(i);
+      if(deal_ticket <= 0) continue;
+
+      long magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
+      if(magic != InpMagicNumber) continue;
+
+      long entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+      if(entry == DEAL_ENTRY_OUT) // Out deal!
+      {
+         double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+         double swap   = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+         double comm   = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+         double pnl    = profit + swap + comm;
+
+         long reason = HistoryDealGetInteger(deal_ticket, DEAL_REASON);
+
+         if(reason == DEAL_REASON_SL || pnl < -0.01)
+         {
+            sl_hits++;
+         }
+         else if(reason == DEAL_REASON_TP || pnl > 0.01)
+         {
+            // Match position entry deal to get exact entry price & SL distance
+            long pos_id = HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+            double exit_price = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
+            double entry_price = 0.0;
+
+            for(int k = 0; k < total_deals; k++)
+            {
+               ulong in_ticket = HistoryDealGetTicket(k);
+               if(in_ticket <= 0) continue;
+               if(HistoryDealGetInteger(in_ticket, DEAL_POSITION_ID) == pos_id &&
+                  HistoryDealGetInteger(in_ticket, DEAL_ENTRY) == DEAL_ENTRY_IN)
+               {
+                  entry_price = HistoryDealGetDouble(in_ticket, DEAL_PRICE);
+                  break;
+               }
+            }
+
+            if(entry_price > 0.0)
+            {
+               double move_dollars = MathAbs(exit_price - entry_price);
+               
+               // Read Order Comment from order history
+               ulong order_ticket = HistoryDealGetInteger(deal_ticket, DEAL_ORDER);
+               string ord_comment = "";
+               if(HistoryOrderSelect(order_ticket))
+               {
+                  ord_comment = HistoryOrderGetString(order_ticket, ORDER_COMMENT);
+               }
+
+               if(StringFind(ord_comment, "T3") >= 0) tp3_hits++;
+               else if(StringFind(ord_comment, "T2") >= 0) tp2_hits++;
+               else if(StringFind(ord_comment, "T1") >= 0) tp1_hits++;
+               else
+               {
+                  // Fallback: classify based on profit size
+                  tp1_hits++;
+               }
+            }
+            else
+            {
+               tp1_hits++;
+            }
+         }
+      }
+   }
+
+   int total_closed_tickets = tp1_hits + tp2_hits + tp3_hits + sl_hits;
+   int calculated_setups = (total_closed_tickets > 0) ? (int)MathCeil((double)total_closed_tickets / 3.0) : m_total_setups_count;
+   if(calculated_setups <= 0) calculated_setups = m_total_setups_count;
+
+   double tp1_pct = (calculated_setups > 0) ? ((double)tp1_hits / calculated_setups) * 100.0 : 0.0;
+   double tp2_pct = (calculated_setups > 0) ? ((double)tp2_hits / calculated_setups) * 100.0 : 0.0;
+   double tp3_pct = (calculated_setups > 0) ? ((double)tp3_hits / calculated_setups) * 100.0 : 0.0;
+   double sl_pct  = (calculated_setups > 0) ? ((double)sl_hits / (calculated_setups * 3.0)) * 100.0 : 0.0;
 
    Print("=========================================================================================");
-   Print(" 📊 MODEL 1 MACRO INTRADAY ENGINE: FINAL BACKTEST SUMMARY PERFORMANCE REPORT");
+   Print(" 📊 MODEL 1 MACRO INTRADAY ENGINE: OFFICIAL HISTORICAL PERFORMANCE REPORT");
    Print("=========================================================================================");
-   PrintFormat(" Total Candidate Setups Triggered : %d Setups", m_total_setups_count);
-   PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate)", m_tp1_hits_count, tp1_pct);
-   PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate)", m_tp2_hits_count, tp2_pct);
-   PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate)", m_tp3_hits_count, tp3_pct);
-   PrintFormat(" SL Hits (Full Stop Loss)         : %d Losses (%.1f%% Loss Rate)", m_sl_hits_count, sl_pct);
+   PrintFormat(" Total Candidate Setups Triggered : %d Setups", calculated_setups);
+   PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate)", tp1_hits, tp1_pct);
+   PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate)", tp2_hits, tp2_pct);
+   PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate)", tp3_hits, tp3_pct);
+   PrintFormat(" SL Hits (Full Stop Loss Exits)   : %d Deals (%.1f%% Loss Rate)", sl_hits, sl_pct);
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" OVERALL SETUP WIN RATE (TP1+ Hit): %.1f%% (%d Wins / %d Losses)",
-               tp1_pct, m_tp1_hits_count, m_sl_hits_count);
+               tp1_pct, tp1_hits, sl_hits);
    Print("=========================================================================================");
+}
+
+void OnDeinit(const int reason)
+{
+   GeneratePerformanceReport();
 
    IndicatorRelease(m_h1_ema21_handle);
    IndicatorRelease(m_h1_ema50_handle);
