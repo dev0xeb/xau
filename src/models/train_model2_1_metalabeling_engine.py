@@ -63,10 +63,10 @@ def train_model2_1_metalabeling_engine():
         print(f"[ERROR] Dataset missing at: {dataset_path.resolve()}")
         return
 
-    print("=========================================================================")
-    print(" 🚀 INITIALIZING MODEL 2.1 META-LABELING & MULTI-TARGET ML ENGINE")
-    print("=========================================================================")
-    print(f" Loading 5-Year XAU/USD 5M dataset from: {dataset_path}...")
+    print("=========================================================================", flush=True)
+    print(" [MODEL 2.1] INITIALIZING META-LABELING & MULTI-TARGET ML ENGINE", flush=True)
+    print("=========================================================================", flush=True)
+    print(f" Loading 5-Year XAU/USD 5M dataset from: {dataset_path}...", flush=True)
 
     df = pd.read_parquet(dataset_path)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
@@ -287,7 +287,7 @@ def train_model2_1_metalabeling_engine():
         })
 
     cand_df = pd.DataFrame(candidates)
-    print(f" Candidate Dataset Extracted: {len(cand_df):,} Trade Setups (Meta-Label Win Rate: {cand_df['meta_label'].mean()*100:.1f}%).")
+    print(f" Candidate Dataset Extracted: {len(cand_df):,} Trade Setups (Meta-Label Win Rate: {cand_df['meta_label'].mean()*100:.1f}%).", flush=True)
 
     # Step 2: Feature Matrix & Purged Group TimeSeries Split
     feature_cols = [
@@ -303,7 +303,7 @@ def train_model2_1_metalabeling_engine():
     y_tp3 = cand_df['target_tp3'].values
 
     # Step 3: Multi-Model Tournament Benchmarking with Purged Walk-Forward Validation
-    print("\n Step 3: Running Tournament Benchmarking (Purged Walk-Forward Cross-Validation)...")
+    print("\n Step 3: Running Tournament Benchmarking (Purged Walk-Forward Cross-Validation)...", flush=True)
     
     models = {
         'Random Forest': RandomForestClassifier(n_estimators=150, max_depth=8, min_samples_leaf=10, random_state=42),
@@ -348,7 +348,7 @@ def train_model2_1_metalabeling_engine():
         mean_prec = np.mean(precisions)
         mean_brier = np.mean(briers)
 
-        print(f"   - {name:<22} | ROC-AUC: {mean_auc:.4f} | Precision (p>=0.58): {mean_prec*100:.1f}% | Brier Score: {mean_brier:.4f}")
+        print(f"   - {name:<22} | ROC-AUC: {mean_auc:.4f} | Precision (p>=0.58): {mean_prec*100:.1f}% | Brier Score: {mean_brier:.4f}", flush=True)
         tournament_results.append({
             'model_name': name,
             'auc': mean_auc,
@@ -362,7 +362,7 @@ def train_model2_1_metalabeling_engine():
     best_model_name = tournament_df.iloc[0]['model_name']
     best_base_model = tournament_df.iloc[0]['model_obj']
 
-    print(f"\n 🏆 TOURNAMENT CHAMPION: {best_model_name} (ROC-AUC: {tournament_df.iloc[0]['auc']:.4f})")
+    print(f"\n [WINNER] TOURNAMENT CHAMPION: {best_model_name} (ROC-AUC: {tournament_df.iloc[0]['auc']:.4f})")
 
     # Step 4: Final Fit & Isotonic Calibration on Full Dataset
     print("\n Step 4: Training Calibrated Multi-Target Meta-Labeling Model...")
@@ -386,7 +386,7 @@ def train_model2_1_metalabeling_engine():
     cand_df['expected_r'] = expected_r
 
     print("-------------------------------------------------------------------------")
-    print(" 📈 MULTI-TARGET EXPECTED RETURN E[R] DISTRIBUTION:")
+    print(" [STATS] MULTI-TARGET EXPECTED RETURN E[R] DISTRIBUTION:")
     print(f"   - Mean Expected Return E[R]  : {expected_r.mean():+.3f}x R")
     print(f"   - Max Expected Return E[R]   : {expected_r.max():+.3f}x R")
     print(f"   - Trades with E[R] > 0.0x    : {(expected_r > 0).sum():,} trades ({(expected_r > 0).mean()*100:.1f}%)")
@@ -410,7 +410,7 @@ def train_model2_1_metalabeling_engine():
     joblib.dump(meta_package, out_file)
 
     print("\n=========================================================================")
-    print(f" 💾 MODEL 2.1 META-LABELING ENGINE SERIALIZED SUCCESSFULLY!")
+    print(f" [SUCCESS] MODEL 2.1 META-LABELING ENGINE SERIALIZED SUCCESSFULLY!")
     print(f" Saved Package: {out_file.resolve()}")
     print("=========================================================================\n")
 
