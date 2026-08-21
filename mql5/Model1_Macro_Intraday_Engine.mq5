@@ -48,7 +48,7 @@ input double                InpFixedLotPerTicket= 0.0;                  // Fixed
 
 input group "=== Strategy Rules & Displacement Floor ==="
 input double   InpFVGMinPips       = 2.0;              // Minimum Fair Value Gap Size ($0.20 / 2.0 Pips)
-input double   InpMinRRRatio       = 2.0;              // Minimum Dynamic R:R Gate (TP2 R:R >= 2.0x)
+input double   InpMinRRRatio       = 1.5;              // Minimum Dynamic R:R Gate (TP2 R:R >= 1.5x)
 input double   InpSLBufferPips     = 8.0;              // Structural SL Buffer below/above 3-bar low/high ($0.80)
 input double   InpMinSLPips        = 20.0;             // Minimum SL Distance Floor ($2.00)
 input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance Ceiling ($12.00)
@@ -172,12 +172,12 @@ void GeneratePerformanceReport()
       }
       else if(pnl > 0.01)
       {
-         if(r_multiple >= 2.50)
+         if(r_multiple >= 2.25)
          {
             tp3_hits++;
             total_tp3_dist += move_dollars;
          }
-         else if(r_multiple >= 1.50)
+         else if(r_multiple >= 1.25)
          {
             tp2_hits++;
             total_tp2_dist += move_dollars;
@@ -211,7 +211,7 @@ void GeneratePerformanceReport()
    PrintFormat(" Total Candidate Setups Triggered : %d Setups (%d Total Closed Deals)", calculated_setups, total_closed_tickets);
    PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
                tp1_hits, tp1_pct, avg_tp1_pips, avg_tp1_pips * 0.10);
-   PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
+   PrintFormat(" TP2 Hits (1.5x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
                tp2_hits, tp2_pct, avg_tp2_pips, avg_tp2_pips * 0.10);
    PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
                tp3_hits, tp3_pct, avg_tp3_pips, avg_tp3_pips * 0.10);
@@ -570,12 +570,12 @@ void OnTick()
       sl_price = entry_price + sl_dist_dollars;
    }
 
-   // Target Math (TP1 = 1.0x, TP2 = 2.0x, TP3 = 3.0x)
+   // Target Math (TP1 = 1.0x, TP2 = 1.5x, TP3 = 3.0x)
    double tp1_price = is_buy ? (entry_price + sl_dist_dollars * 1.0) : (entry_price - sl_dist_dollars * 1.0);
-   double tp2_price = is_buy ? (entry_price + sl_dist_dollars * 2.0) : (entry_price - sl_dist_dollars * 2.0);
+   double tp2_price = is_buy ? (entry_price + sl_dist_dollars * 1.5) : (entry_price - sl_dist_dollars * 1.5);
    double tp3_price = is_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
 
-   // 9. STEP 8: Dynamic Risk-to-Reward Gate (TP2 R:R >= 2.0x)
+   // 9. STEP 8: Dynamic Risk-to-Reward Gate (TP2 R:R >= 1.5x)
    double tp2_rr = (MathAbs(tp2_price - entry_price) / sl_dist_dollars);
    if(tp2_rr < InpMinRRRatio)
    {
