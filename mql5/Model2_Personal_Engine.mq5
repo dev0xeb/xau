@@ -58,6 +58,13 @@ input double   InpTP1RiskPct       = 3.0;              // Custom Ticket 1 Risk (
 input double   InpTP2RiskPct       = 2.0;              // Custom Ticket 2 Risk (% of Balance)
 input double   InpTP3RiskPct       = 1.0;              // Custom Ticket 3 Risk (% of Balance)
 
+#include <Trade\Trade.mqh>
+#include <Model2_1_MetaLabeling_Engine.mqh>
+
+input group "=== Model 2.1 Meta-Labeling & Expected Return Engine ==="
+input bool     InpUseMetaLabeling  = true;             // Enable Model 2.1 Meta-Labeling & Risk-Adjusted E[R] Engine
+input double   InpMinExpectedR     = 0.15;             // Minimum Expected Risk-Adjusted Return E[R] Threshold (+0.15x R:R)
+
 input group "=== Machine Learning & Quality Gate ==="
 input double   InpMLGateThreshold  = 0.58;             // ML Quality Gate Minimum Probability (0.58 = 58.0% Champion)
 
