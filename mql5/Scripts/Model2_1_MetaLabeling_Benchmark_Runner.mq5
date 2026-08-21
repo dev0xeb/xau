@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Antigravity Quant Research"
 #property link      "https://github.com/dev0xeb/xau"
-#property version   "4.30"
+#property version   "4.40"
 #property script_show_inputs
 
 #include <Model2_1_MetaLabeling_Engine.mqh>
@@ -14,8 +14,18 @@
 input group "=== Model 2.1 Meta-Labeling Benchmark Configuration ==="
 input ENUM_TIMEFRAMES InpExecutionTF   = PERIOD_M5;            // Execution Timeframe (Default: M5)
 input int             InpBarsToScan    = 100000;               // Bars to Scan in MT5 History (~1 Year)
-input double          InpMinExpectedR  = 0.15;                 // Minimum Expected Return E[R] Threshold (+0.15x R:R)
 input double          InpMaxExtension  = 3.5;                  // Max Extension from EMA21 (in ATR multiples)
+
+//--- Struct for Storing Candidate Setup Data
+struct CandidateBenchmarkRecord
+{
+   datetime entry_time;
+   bool     is_buy;
+   double   entry_price;
+   double   sl_dist_dollars;
+   bool     trade_won;
+   double   expected_r;
+};
 
 //+------------------------------------------------------------------+
 //| Helper Function: Calculate ATR                                   |
@@ -62,8 +72,7 @@ void OnStart()
 {
    Print("=========================================================================================");
    Print(" 🔬 RUNNING MODEL 2.1 META-LABELING & MULTI-TARGET BENCHMARK IN MT5");
-   PrintFormat(" Symbol: %s | Timeframe: %s | Bars Requested: %d | Min E[R]: %+.2fx R",
-               _Symbol, EnumToString(InpExecutionTF), InpBarsToScan, InpMinExpectedR);
+   PrintFormat(" Symbol: %s | Timeframe: %s | Bars Requested: %d", _Symbol, EnumToString(InpExecutionTF), InpBarsToScan);
    Print("=========================================================================================");
 
    MqlRates rates[];
@@ -97,18 +106,12 @@ void OnStart()
 
    // Instantiate Native Meta-Labeling Engine
    CModel21MetaLabelingEngine meta_engine;
-   meta_engine.SetMinExpectedR(InpMinExpectedR);
    meta_engine.SetMaxExtension(InpMaxExtension);
    meta_engine.SetVerboseLogging(false); // Silent mode for fast backtesting
 
-   int candidates_count = 0;
+   CandidateBenchmarkRecord cand_array[];
+   int cand_count = 0;
    int baseline_wins = 0, baseline_losses = 0;
-
-   int meta_approved_count = 0;
-   int meta_wins = 0, meta_losses = 0;
-   int meta_abstained_count = 0;
-   int abstained_losses_saved = 0, abstained_wins_lost = 0;
-
    double sum_expected_r = 0.0;
 
    PrintFormat(" Processing %d M5 bars through Model 2.1 Meta-Labeling Engine...", total_bars);
@@ -158,8 +161,6 @@ void OnStart()
       bool is_sell = m15_bear && bear_fvg && bear_sweep && (close_1 < m5_e21_val);
 
       if(!is_buy && !is_sell) continue;
-
-      candidates_count++;
 
       // Entry Setup
       int entry_idx = i - 1;
@@ -236,41 +237,66 @@ void OnStart()
 
       sum_expected_r += pred.expected_r;
 
-      if(pred.should_trade)
-      {
-         meta_approved_count++;
-         if(trade_won) meta_wins++;
-         else meta_losses++;
-      }
-      else
-      {
-         meta_abstained_count++;
-         if(!trade_won) abstained_losses_saved++;
-         else abstained_wins_lost++;
-      }
+      cand_count++;
+      ArrayResize(cand_array, cand_count);
+      cand_array[cand_count-1].entry_time      = entry_time;
+      cand_array[cand_count-1].is_buy          = is_buy;
+      cand_array[cand_count-1].entry_price     = entry_price;
+      cand_array[cand_count-1].sl_dist_dollars = sl_dist_dollars;
+      cand_array[cand_count-1].trade_won       = trade_won;
+      cand_array[cand_count-1].expected_r      = pred.expected_r;
    }
 
-   double base_wr = (candidates_count > 0) ? ((double)baseline_wins / candidates_count) * 100.0 : 0.0;
-   double meta_wr = (meta_approved_count > 0) ? ((double)meta_wins / meta_approved_count) * 100.0 : 0.0;
-   double avg_expected_r = (candidates_count > 0) ? (sum_expected_r / candidates_count) : 0.0;
+   double base_wr = (cand_count > 0) ? ((double)baseline_wins / cand_count) * 100.0 : 0.0;
+   double avg_expected_r = (cand_count > 0) ? (sum_expected_r / cand_count) : 0.0;
 
    Print("-----------------------------------------------------------------------------------------");
-   Print(" 🏆 MODEL 2.1 META-LABELING NATIVE MQL5 BENCHMARK RESULTS:");
+   PrintFormat(" 📊 BASELINE SETUPS: %d Setups | Baseline Win Rate: %.1f%% (%d Wins / %d Losses)",
+               cand_count, base_wr, baseline_wins, baseline_losses);
+   PrintFormat(" 📊 AVERAGE EXPECTED RETURN E[R]: %+.3fx Risk-Adjusted R:R per Setup", avg_expected_r);
    Print("-----------------------------------------------------------------------------------------");
-   PrintFormat(" Total Candidate Setups Generated  : %d Candidates", candidates_count);
-   PrintFormat(" Baseline Strategy Win Rate        : %.1f%% (%d Wins / %d Losses)", base_wr, baseline_wins, baseline_losses);
-   Print("-----------------------------------------------------------------------------------------");
-   PrintFormat(" 🧠 META-LABELING APPROVED TRADES   : %d Trades (%.1f%% Approved)", meta_approved_count, (candidates_count > 0) ? ((double)meta_approved_count/candidates_count)*100.0 : 0.0);
-   PrintFormat(" 🟢 META-LABELING APPROVED WIN RATE : %.1f%% (%d Wins / %d Losses)", meta_wr, meta_wins, meta_losses);
-   PrintFormat(" 📈 WIN RATE IMPROVEMENT            : %+.1f%% Win Rate Increase!", meta_wr - base_wr);
-   Print("-----------------------------------------------------------------------------------------");
-   PrintFormat(" 🚫 ABSTENTION ENGINE EFFICIENCY    : %d Trades Blocked", meta_abstained_count);
-   PrintFormat("   - Toxic Losses Saved             : %d Losses Eliminated! (%.1f%% of All Losses)", abstained_losses_saved, (baseline_losses > 0) ? ((double)abstained_losses_saved/baseline_losses)*100.0 : 0.0);
-   PrintFormat("   - Wins Sacrificed                : %d Wins", abstained_wins_lost);
-   PrintFormat("   - Loss-to-Win Removal Ratio      : %.2fx (Eliminated %.1fx more losses than wins!)",
-               (abstained_wins_lost > 0) ? (((double)abstained_losses_saved/baseline_losses) / ((double)abstained_wins_lost/baseline_wins)) : 99.9);
-   Print("-----------------------------------------------------------------------------------------");
-   PrintFormat(" 📊 AVERAGE EXPECTED RETURN E[R]     : %+.3fx Risk-Adjusted R:R per Setup", avg_expected_r);
+   Print(" 🔬 MODEL 2.1 EXPECTED RETURN E[R] THRESHOLD SENSITIVITY TABLE:");
+   Print(" Min E[R] Threshold | Approved Trades | Wins | Losses | Win Rate (%) | Losses Cut (%) | Loss/Win Ratio | Verdict");
+   Print(" ---------------------------------------------------------------------------------------------------------------");
+
+   double thresholds[6] = {0.15, 0.30, 0.45, 0.55, 0.65, 0.75};
+
+   for(int t = 0; t < 6; t++)
+   {
+      double min_r = thresholds[t];
+      int app_trades = 0, app_wins = 0, app_losses = 0;
+      int losses_cut = 0, wins_cut = 0;
+
+      for(int c = 0; c < cand_count; c++)
+      {
+         if(cand_array[c].expected_r >= min_r)
+         {
+            app_trades++;
+            if(cand_array[c].trade_won) app_wins++;
+            else app_losses++;
+         }
+         else
+         {
+            if(!cand_array[c].trade_won) losses_cut++;
+            else wins_cut++;
+         }
+      }
+
+      double app_wr   = (app_trades > 0) ? ((double)app_wins / app_trades) * 100.0 : 0.0;
+      double win_cut_pct  = (baseline_wins > 0) ? ((double)wins_cut / baseline_wins) * 100.0 : 0.0;
+      double loss_cut_pct = (baseline_losses > 0) ? ((double)losses_cut / baseline_losses) * 100.0 : 0.0;
+      double ratio        = (win_cut_pct > 0) ? (loss_cut_pct / win_cut_pct) : (loss_cut_pct > 0 ? 99.9 : 0.0);
+
+      string verdict = (app_wr > base_wr && ratio > 1.1) ? "🟢 HIGH EXPECTANCY CLUSTER" : "⚪ STANDARD";
+      if(app_wr >= 58.0) verdict = "🔥 ULTRA-SNIPER CLUSTER";
+
+      PrintFormat(" E[R] >= %+.2fx R   | %6d (%4.1f%%) | %4d | %6d |    %5.1f%%   |     %5.1f%%    |      %5.2fx    | %s",
+                  min_r, app_trades, (cand_count > 0) ? ((double)app_trades/cand_count)*100.0 : 0.0,
+                  app_wins, app_losses, app_wr, loss_cut_pct, ratio, verdict);
+   }
+
+   Print("=========================================================================================");
+   Print(" 🏆 MODEL 2.1 META-LABELING THRESHOLD SENSITIVITY BENCHMARK COMPLETED!");
    Print("=========================================================================================");
 
    IndicatorRelease(h_m15_e21);
