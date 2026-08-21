@@ -68,8 +68,8 @@ void OnStart()
       return;
    }
 
-   // Skip Header Line
-   string header = FileReadString(file_handle);
+   // Skip complete 31-token Header Line
+   for(int h = 0; h < 31; h++) FileReadString(file_handle);
 
    CSVTradeRecord records[];
    int total_trades = 0;
@@ -117,7 +117,7 @@ void OnStart()
       records[idx].duration_bars       = (int)StringToInteger(FileReadString(file_handle));
 
       records[idx].is_win  = (StringFind(records[idx].outcome, "WIN") >= 0);
-      records[idx].is_loss = (records[idx].outcome == "LOSS");
+      records[idx].is_loss = (records[idx].outcome == "LOSS" || !records[idx].is_win);
 
       if(records[idx].is_loss) total_losses++;
    }

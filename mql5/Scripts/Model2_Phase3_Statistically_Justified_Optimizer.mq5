@@ -69,8 +69,8 @@ void OnStart()
       return;
    }
 
-   // Skip Header Line
-   string header = FileReadString(file_handle);
+   // Skip complete 31-token Header Line
+   for(int h = 0; h < 31; h++) FileReadString(file_handle);
 
    Phase3Record records[];
    int total_trades = 0;
@@ -122,7 +122,7 @@ void OnStart()
       records[idx].is_loss = (records[idx].outcome == "LOSS");
 
       if(records[idx].is_win) total_wins++;
-      if(records[idx].is_loss) total_losses++;
+      else { records[idx].is_loss = true; total_losses++; }
    }
 
    FileClose(file_handle);
