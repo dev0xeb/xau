@@ -129,64 +129,50 @@ void GeneratePerformanceReport()
       if(magic != InpMagicNumber) continue;
 
       long entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
-      if(entry == DEAL_ENTRY_OUT) // Out deal!
+      if(entry != DEAL_ENTRY_OUT) continue; // ONLY evaluate exit deals!
+
+      double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+      double swap   = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
+      double comm   = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+      double pnl    = profit + swap + comm;
+
+      long pos_id       = HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
+      double exit_price = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
+
+      // Find matching entry deal (DEAL_ENTRY_IN) for this position
+      double entry_price = 0.0;
+      double sl_price    = 0.0;
+
+      for(int k = 0; k < total_deals; k++)
       {
-         double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
-         double swap   = HistoryDealGetDouble(deal_ticket, DEAL_SWAP);
-         double comm   = HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
-         double pnl    = profit + swap + comm;
-
-         long reason = HistoryDealGetInteger(deal_ticket, DEAL_REASON);
-
-         if(reason == DEAL_REASON_SL || pnl < -0.01)
+         ulong in_ticket = HistoryDealGetTicket(k);
+         if(in_ticket <= 0) continue;
+         if(HistoryDealGetInteger(in_ticket, DEAL_POSITION_ID) == pos_id &&
+            HistoryDealGetInteger(in_ticket, DEAL_ENTRY) == DEAL_ENTRY_IN)
          {
-            sl_hits++;
+            entry_price = HistoryDealGetDouble(in_ticket, DEAL_PRICE);
+            sl_price    = HistoryDealGetDouble(in_ticket, DEAL_SL);
+            break;
          }
-         else if(reason == DEAL_REASON_TP || pnl > 0.01)
-         {
-            // Match position entry deal to get exact entry price & SL distance
-            long pos_id = HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID);
-            double exit_price = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
-            double entry_price = 0.0;
+      }
 
-            for(int k = 0; k < total_deals; k++)
-            {
-               ulong in_ticket = HistoryDealGetTicket(k);
-               if(in_ticket <= 0) continue;
-               if(HistoryDealGetInteger(in_ticket, DEAL_POSITION_ID) == pos_id &&
-                  HistoryDealGetInteger(in_ticket, DEAL_ENTRY) == DEAL_ENTRY_IN)
-               {
-                  entry_price = HistoryDealGetDouble(in_ticket, DEAL_PRICE);
-                  break;
-               }
-            }
+      if(entry_price <= 0.0) continue;
 
-            if(entry_price > 0.0)
-            {
-               double move_dollars = MathAbs(exit_price - entry_price);
-               
-               // Read Order Comment from order history
-               ulong order_ticket = HistoryDealGetInteger(deal_ticket, DEAL_ORDER);
-               string ord_comment = "";
-               if(HistoryOrderSelect(order_ticket))
-               {
-                  ord_comment = HistoryOrderGetString(order_ticket, ORDER_COMMENT);
-               }
+      double sl_dist_dollars = MathAbs(entry_price - sl_price);
+      if(sl_dist_dollars <= 0.01) sl_dist_dollars = 2.50; // Safety floor
 
-               if(StringFind(ord_comment, "T3") >= 0) tp3_hits++;
-               else if(StringFind(ord_comment, "T2") >= 0) tp2_hits++;
-               else if(StringFind(ord_comment, "T1") >= 0) tp1_hits++;
-               else
-               {
-                  // Fallback: classify based on profit size
-                  tp1_hits++;
-               }
-            }
-            else
-            {
-               tp1_hits++;
-            }
-         }
+      double move_dollars = MathAbs(exit_price - entry_price);
+      double r_multiple   = move_dollars / sl_dist_dollars;
+
+      if(pnl < -0.01 || (sl_price > 0.0 && MathAbs(exit_price - sl_price) < 0.30))
+      {
+         sl_hits++;
+      }
+      else if(pnl > 0.01)
+      {
+         if(r_multiple >= 2.50)      tp3_hits++;
+         else if(r_multiple >= 1.50) tp2_hits++;
+         else                        tp1_hits++;
       }
    }
 
@@ -202,7 +188,7 @@ void GeneratePerformanceReport()
    Print("=========================================================================================");
    Print(" 📊 MODEL 1 MACRO INTRADAY ENGINE: OFFICIAL HISTORICAL PERFORMANCE REPORT");
    Print("=========================================================================================");
-   PrintFormat(" Total Candidate Setups Triggered : %d Setups", calculated_setups);
+   PrintFormat(" Total Candidate Setups Triggered : %d Setups (%d Total Closed Deals)", calculated_setups, total_closed_tickets);
    PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate)", tp1_hits, tp1_pct);
    PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate)", tp2_hits, tp2_pct);
    PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate)", tp3_hits, tp3_pct);
