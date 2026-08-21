@@ -60,6 +60,13 @@ input ENUM_EXECUTION_MODE InpExecutionMode  = EXECUTION_MARKET_ON_CLOSE; // Orde
 input ENUM_TRAILING_MODE InpTrailingMode  = TRAILING_MODE_FIXED;  // Trailing Stop Mode (0=Fixed SL, 1=BE on TP1)
 input int      InpMagicNumber      = 1001;             // Magic Number (Model 1 Intraday Engine)
 
+input group "=== Institutional Quality & Trailing Enhancements ==="
+input bool     InpRequireEMASlope   = false;  // Filter: Require Active H1 EMA21 Slope Momentum
+input double   InpMinEMASlopePips   = 1.0;    // Filter: Minimum H1 EMA21 Slope Floor ($0.10 / 1.0 Pip over 3 bars)
+input bool     InpRequireATRFilter  = false;  // Filter: Require M15 Volatility Expansion (ATR > ATR SMA20)
+input int      InpATRPeriod         = 14;     // Filter: M15 ATR Period
+input bool     InpLockTP1OnTicket3  = false;  // Trailing: Lock TP1 (+1.0x R:R) Profit on Ticket 3 when TP2 Hits
+
 input group "=== Visual Tester Settings ==="
 input bool     InpDrawHUD          = true;             // Draw On-Chart HUD Panel
 input bool     InpDrawFVGBoxes     = true;             // Draw Visual FVG Boxes & Target Lines
@@ -69,6 +76,7 @@ CTrade         m_trade;
 int            m_h1_ema21_handle;
 int            m_h1_ema50_handle;
 int            m_m15_ema21_handle;
+int            m_m15_atr_handle;
 datetime       m_last_bar_time;
 
 // Operational Analytics
@@ -95,8 +103,10 @@ int OnInit()
    m_h1_ema21_handle = iMA(_Symbol, InpMacroTimeframe, 21, 0, MODE_EMA, PRICE_CLOSE);
    m_h1_ema50_handle = iMA(_Symbol, InpMacroTimeframe, 50, 0, MODE_EMA, PRICE_CLOSE);
    m_m15_ema21_handle= iMA(_Symbol, InpExecutionTimeframe, 21, 0, MODE_EMA, PRICE_CLOSE);
+   m_m15_atr_handle  = iATR(_Symbol, InpExecutionTimeframe, InpATRPeriod);
 
-   if(m_h1_ema21_handle == INVALID_HANDLE || m_h1_ema50_handle == INVALID_HANDLE || m_m15_ema21_handle == INVALID_HANDLE)
+   if(m_h1_ema21_handle == INVALID_HANDLE || m_h1_ema50_handle == INVALID_HANDLE ||
+      m_m15_ema21_handle == INVALID_HANDLE || m_m15_atr_handle == INVALID_HANDLE)
    {
       Print("[ERROR] Failed to initialize MQL5 indicator handles!");
       return INIT_FAILED;
@@ -230,6 +240,7 @@ void OnDeinit(const int reason)
    IndicatorRelease(m_h1_ema21_handle);
    IndicatorRelease(m_h1_ema50_handle);
    IndicatorRelease(m_m15_ema21_handle);
+   IndicatorRelease(m_m15_atr_handle);
    ObjectsDeleteAll(0, "M1_HUD_");
    ObjectsDeleteAll(0, "M1_FVG_");
    ObjectsDeleteAll(0, "M1_LINE_");
@@ -318,6 +329,35 @@ void ManageOpenPositions()
                   m_trade.PositionModify(ticket, open_price - 0.10, PositionGetDouble(POSITION_TP));
                   PrintFormat("[BE ADJUST] Ticket #%d moved to Break-Even (+ $0.10 buffer).", ticket);
                }
+            }
+         }
+      }
+
+      // Step Trailing: Lock TP1 Profit (+1.0x R:R) on Ticket 3 when TP2 (1.5x) Hits
+      if(InpLockTP1OnTicket3 && StringFind(comment, "T3") >= 0)
+      {
+         if(type == POSITION_TYPE_BUY)
+         {
+            double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+            double sl_dist = MathAbs(open_price - current_sl);
+            double tp2_target = open_price + (sl_dist * 1.5);
+            double tp1_target = open_price + (sl_dist * 1.0);
+            if(bid >= tp2_target && current_sl < tp1_target)
+            {
+               m_trade.PositionModify(ticket, tp1_target, PositionGetDouble(POSITION_TP));
+               PrintFormat("[STEP TRAIL LOCK] Ticket 3 #%d locked in TP1 (+1.0x R:R) profit.", ticket);
+            }
+         }
+         else if(type == POSITION_TYPE_SELL)
+         {
+            double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+            double sl_dist = MathAbs(current_sl - open_price);
+            double tp2_target = open_price - (sl_dist * 1.5);
+            double tp1_target = open_price - (sl_dist * 1.0);
+            if(ask <= tp2_target && (current_sl > tp1_target || current_sl == 0.0))
+            {
+               m_trade.PositionModify(ticket, tp1_target, PositionGetDouble(POSITION_TP));
+               PrintFormat("[STEP TRAIL LOCK] Ticket 3 #%d locked in TP1 (+1.0x R:R) profit.", ticket);
             }
          }
       }
@@ -497,6 +537,36 @@ void OnTick()
    {
       RenderHUD(macro_trend, session_state, 0.0, PositionsTotal());
       return;
+   }
+
+   // Optional Filter: H1 EMA21 Slope Momentum Guard
+   if(InpRequireEMASlope)
+   {
+      double h1_ema_slope_dollars = MathAbs(h1_e21_buf[1] - h1_e21_buf[4]);
+      if(h1_ema_slope_dollars < InpMinEMASlopePips * 0.10)
+      {
+         RenderHUD(macro_trend, session_state, 0.0, PositionsTotal());
+         return;
+      }
+   }
+
+   // Optional Filter: M15 ATR Volatility Expansion Guard
+   if(InpRequireATRFilter)
+   {
+      double m15_atr_buf[];
+      ArraySetAsSeries(m15_atr_buf, true);
+      if(CopyBuffer(m_m15_atr_handle, 0, 0, 25, m15_atr_buf) >= 20)
+      {
+         double atr_sum = 0.0;
+         for(int a = 1; a <= 20; a++) atr_sum += m15_atr_buf[a];
+         double atr_sma20 = atr_sum / 20.0;
+
+         if(m15_atr_buf[1] < atr_sma20)
+         {
+            RenderHUD(macro_trend, session_state, 0.0, PositionsTotal());
+            return;
+         }
+      }
    }
 
    // 5. STEP 4: M15 FVG Displacement Calculation on closed candle bar 1 (iloc[-2])
