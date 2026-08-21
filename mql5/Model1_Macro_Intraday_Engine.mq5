@@ -245,18 +245,30 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
          long entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
          if(entry == DEAL_ENTRY_OUT) // Deal exit!
          {
-            double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
-            string comment = HistoryDealGetString(deal_ticket, DEAL_COMMENT);
+            ulong order_ticket = HistoryDealGetInteger(deal_ticket, DEAL_ORDER);
+            string order_comment = "";
+            if(HistoryOrderSelect(order_ticket))
+            {
+               order_comment = HistoryOrderGetString(order_ticket, ORDER_COMMENT);
+            }
+            if(order_comment == "")
+            {
+               order_comment = HistoryDealGetString(deal_ticket, DEAL_COMMENT);
+            }
 
-            if(profit < -0.01)
+            long reason   = HistoryDealGetInteger(deal_ticket, DEAL_REASON);
+            double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+
+            if(reason == DEAL_REASON_SL || profit < -0.01)
             {
                m_sl_hits_count++;
             }
-            else if(profit > 0.01)
+            else if(reason == DEAL_REASON_TP || profit > 0.01)
             {
-               if(StringFind(comment, "T1") >= 0) m_tp1_hits_count++;
-               else if(StringFind(comment, "T2") >= 0) m_tp2_hits_count++;
-               else if(StringFind(comment, "T3") >= 0) m_tp3_hits_count++;
+               if(StringFind(order_comment, "T1") >= 0) m_tp1_hits_count++;
+               else if(StringFind(order_comment, "T2") >= 0) m_tp2_hits_count++;
+               else if(StringFind(order_comment, "T3") >= 0) m_tp3_hits_count++;
+               else m_tp1_hits_count++; // Fallback
             }
          }
       }
