@@ -186,11 +186,11 @@ public:
       double base_p_win = Sigmoid(z_score);
       base_p_win = Clamp(base_p_win, 0.10, 0.90);
 
-      // Multi-Target Outcome Probabilities
-      out.p_tp1 = Clamp(base_p_win * 1.15, 0.15, 0.92);  // Probability of TP1 (1.0x SL)
-      out.p_tp2 = Clamp(base_p_win * 0.90, 0.10, 0.82);  // Probability of TP2 (2.0x SL)
-      out.p_tp3 = Clamp(base_p_win * 0.70, 0.05, 0.70);  // Probability of TP3 (3.0x SL)
-      out.p_sl  = Clamp(1.0 - out.p_tp1, 0.08, 0.85);    // Probability of SL Hit
+      // Multi-Target Outcome Probabilities (Calibrated to Empirical Multi-Target Frequencies)
+      out.p_tp1 = Clamp(base_p_win * 1.00, 0.10, 0.90);  // Probability of TP1 (1.0x SL)
+      out.p_tp2 = Clamp(base_p_win * 0.65, 0.05, 0.75);  // Probability of TP2 (2.0x SL)
+      out.p_tp3 = Clamp(base_p_win * 0.40, 0.02, 0.60);  // Probability of TP3 (3.0x SL)
+      out.p_sl  = Clamp(1.0 - out.p_tp1, 0.10, 0.90);    // Probability of SL Hit
 
       // Predicted MAE & MFE ($)
       out.pred_mae_dollars = feats.sl_dist_norm * (1.0 - base_p_win * 0.5);
@@ -204,7 +204,7 @@ public:
                        (out.p_sl * 1.0);
 
       // Dynamic Lot Multiplier based on E[R] Expectancy
-      out.lot_multiplier = Clamp(out.expected_r / 0.25, 0.50, 1.50);
+      out.lot_multiplier = Clamp(1.0 + out.expected_r, 0.50, 1.50);
 
       // --- 4. ABSTENTION DECISION GATE ---
       if(out.expected_r < m_min_expected_r)
