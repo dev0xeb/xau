@@ -48,7 +48,7 @@ input double                InpFixedLotPerTicket= 0.0;                  // Fixed
 
 input group "=== Strategy Rules & Displacement Floor ==="
 input double   InpFVGMinPips       = 2.0;              // Minimum Fair Value Gap Size ($0.20 / 2.0 Pips)
-input double   InpMinRRRatio       = 1.5;              // Minimum Dynamic R:R Gate (TP2 R:R >= 1.5x)
+input double   InpMinRRRatio       = 0.0;              // Minimum Dynamic R:R Gate (0.0 = Skipped/Disabled)
 input double   InpSLBufferPips     = 8.0;              // Structural SL Buffer below/above 3-bar low/high ($0.80)
 input double   InpMinSLPips        = 20.0;             // Minimum SL Distance Floor ($2.00)
 input double   InpMaxSLPips        = 120.0;            // Maximum SL Distance Ceiling ($12.00)
@@ -575,13 +575,16 @@ void OnTick()
    double tp2_price = is_buy ? (entry_price + sl_dist_dollars * 1.5) : (entry_price - sl_dist_dollars * 1.5);
    double tp3_price = is_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
 
-   // 9. STEP 8: Dynamic Risk-to-Reward Gate (TP2 R:R >= 1.5x)
-   double tp2_rr = (MathAbs(tp2_price - entry_price) / sl_dist_dollars);
-   if(tp2_rr < InpMinRRRatio)
+   // 9. STEP 8: Dynamic Risk-to-Reward Gate (Skipped / Disabled)
+   if(InpMinRRRatio > 0.0)
    {
-      PrintFormat("[RR GATE REJECT] TP2 R:R (%.2fx) is below floor (%.2fx). Skipping entry.",
-                  tp2_rr, InpMinRRRatio);
-      return;
+      double tp2_rr = (MathAbs(tp2_price - entry_price) / sl_dist_dollars);
+      if(tp2_rr < InpMinRRRatio)
+      {
+         PrintFormat("[RR GATE REJECT] TP2 R:R (%.2fx) is below floor (%.2fx). Skipping entry.",
+                     tp2_rr, InpMinRRRatio);
+         return;
+      }
    }
 
    // 10. STEP 9: 3-Ticket Order Execution
