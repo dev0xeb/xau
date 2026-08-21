@@ -112,6 +112,24 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+   double tp1_pct = (m_total_setups_count > 0) ? ((double)m_tp1_hits_count / m_total_setups_count) * 100.0 : 0.0;
+   double tp2_pct = (m_total_setups_count > 0) ? ((double)m_tp2_hits_count / m_total_setups_count) * 100.0 : 0.0;
+   double tp3_pct = (m_total_setups_count > 0) ? ((double)m_tp3_hits_count / m_total_setups_count) * 100.0 : 0.0;
+   double sl_pct  = (m_total_setups_count > 0) ? ((double)m_sl_hits_count / m_total_setups_count) * 100.0 : 0.0;
+
+   Print("=========================================================================================");
+   Print(" 📊 MODEL 1 MACRO INTRADAY ENGINE: FINAL BACKTEST SUMMARY PERFORMANCE REPORT");
+   Print("=========================================================================================");
+   PrintFormat(" Total Candidate Setups Triggered : %d Setups", m_total_setups_count);
+   PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate)", m_tp1_hits_count, tp1_pct);
+   PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate)", m_tp2_hits_count, tp2_pct);
+   PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate)", m_tp3_hits_count, tp3_pct);
+   PrintFormat(" SL Hits (Full Stop Loss)         : %d Losses (%.1f%% Loss Rate)", m_sl_hits_count, sl_pct);
+   Print("-----------------------------------------------------------------------------------------");
+   PrintFormat(" OVERALL SETUP WIN RATE (TP1+ Hit): %.1f%% (%d Wins / %d Losses)",
+               tp1_pct, m_tp1_hits_count, m_sl_hits_count);
+   Print("=========================================================================================");
+
    IndicatorRelease(m_h1_ema21_handle);
    IndicatorRelease(m_h1_ema50_handle);
    IndicatorRelease(m_m15_ema21_handle);
