@@ -119,6 +119,7 @@ void GeneratePerformanceReport()
    int total_deals = HistoryDealsTotal();
 
    int tp1_hits = 0, tp2_hits = 0, tp3_hits = 0, sl_hits = 0;
+   double total_tp1_dist = 0.0, total_tp2_dist = 0.0, total_tp3_dist = 0.0, total_sl_dist = 0.0;
 
    for(int i = 0; i < total_deals; i++)
    {
@@ -167,12 +168,25 @@ void GeneratePerformanceReport()
       if(pnl < -0.01 || (sl_price > 0.0 && MathAbs(exit_price - sl_price) < 0.30))
       {
          sl_hits++;
+         total_sl_dist += move_dollars;
       }
       else if(pnl > 0.01)
       {
-         if(r_multiple >= 2.50)      tp3_hits++;
-         else if(r_multiple >= 1.50) tp2_hits++;
-         else                        tp1_hits++;
+         if(r_multiple >= 2.50)
+         {
+            tp3_hits++;
+            total_tp3_dist += move_dollars;
+         }
+         else if(r_multiple >= 1.50)
+         {
+            tp2_hits++;
+            total_tp2_dist += move_dollars;
+         }
+         else
+         {
+            tp1_hits++;
+            total_tp1_dist += move_dollars;
+         }
       }
    }
 
@@ -185,14 +199,24 @@ void GeneratePerformanceReport()
    double tp3_pct = (calculated_setups > 0) ? ((double)tp3_hits / calculated_setups) * 100.0 : 0.0;
    double sl_pct  = (calculated_setups > 0) ? ((double)sl_hits / (calculated_setups * 3.0)) * 100.0 : 0.0;
 
+   // Pip calculation (1.0 Pip = $0.10 on XAUUSD)
+   double avg_tp1_pips = (tp1_hits > 0) ? (total_tp1_dist / tp1_hits) * 10.0 : 0.0;
+   double avg_tp2_pips = (tp2_hits > 0) ? (total_tp2_dist / tp2_hits) * 10.0 : 0.0;
+   double avg_tp3_pips = (tp3_hits > 0) ? (total_tp3_dist / tp3_hits) * 10.0 : 0.0;
+   double avg_sl_pips  = (sl_hits  > 0) ? (total_sl_dist  / sl_hits)  * 10.0 : 0.0;
+
    Print("=========================================================================================");
    Print(" 📊 MODEL 1 MACRO INTRADAY ENGINE: OFFICIAL HISTORICAL PERFORMANCE REPORT");
    Print("=========================================================================================");
    PrintFormat(" Total Candidate Setups Triggered : %d Setups (%d Total Closed Deals)", calculated_setups, total_closed_tickets);
-   PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate)", tp1_hits, tp1_pct);
-   PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate)", tp2_hits, tp2_pct);
-   PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate)", tp3_hits, tp3_pct);
-   PrintFormat(" SL Hits (Full Stop Loss Exits)   : %d Deals (%.1f%% Loss Rate)", sl_hits, sl_pct);
+   PrintFormat(" TP1 Hits (1.0x R:R Banker)       : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
+               tp1_hits, tp1_pct, avg_tp1_pips, avg_tp1_pips * 0.10);
+   PrintFormat(" TP2 Hits (2.0x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
+               tp2_hits, tp2_pct, avg_tp2_pips, avg_tp2_pips * 0.10);
+   PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
+               tp3_hits, tp3_pct, avg_tp3_pips, avg_tp3_pips * 0.10);
+   PrintFormat(" SL Hits (Full Stop Loss Exits)   : %d Deals (%.1f%% Loss Rate)| Avg Distance: %.1f Pips ($%.2f)",
+               sl_hits, sl_pct, avg_sl_pips, avg_sl_pips * 0.10);
    Print("-----------------------------------------------------------------------------------------");
    PrintFormat(" OVERALL SETUP WIN RATE (TP1+ Hit): %.1f%% (%d Wins / %d Losses)",
                tp1_pct, tp1_hits, sl_hits);
@@ -589,8 +613,13 @@ void OnTick()
 
    m_total_setups_count++;
 
-   PrintFormat("[MODEL 1 EXECUTION] %s Setup #%d Confirmed | SL: $%.2f ($%.2f) | TP1: $%.2f | TP2: $%.2f | TP3: $%.2f",
-               is_buy ? "BUY" : "SELL", m_total_setups_count, sl_price, sl_dist_dollars, tp1_price, tp2_price, tp3_price);
+   double sl_pips  = sl_dist_dollars * 10.0;
+   double tp1_pips = sl_pips * 1.0;
+   double tp2_pips = sl_pips * 2.0;
+   double tp3_pips = sl_pips * 3.0;
+
+   PrintFormat("[MODEL 1 EXECUTION] %s Setup #%d Confirmed | SL: $%.2f (%.1f Pips) | TP1: $%.2f (%.1f Pips) | TP2: $%.2f (%.1f Pips) | TP3: $%.2f (%.1f Pips)",
+               is_buy ? "BUY" : "SELL", m_total_setups_count, sl_price, sl_pips, tp1_price, tp1_pips, tp2_price, tp2_pips, tp3_price, tp3_pips);
 
    if(is_buy)
    {
