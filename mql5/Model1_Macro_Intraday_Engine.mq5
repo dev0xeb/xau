@@ -172,7 +172,7 @@ void GeneratePerformanceReport()
       }
       else if(pnl > 0.01)
       {
-         if(r_multiple >= 2.25)
+         if(r_multiple >= 1.75)
          {
             tp3_hits++;
             total_tp3_dist += move_dollars;
@@ -213,7 +213,7 @@ void GeneratePerformanceReport()
                tp1_hits, tp1_pct, avg_tp1_pips, avg_tp1_pips * 0.10);
    PrintFormat(" TP2 Hits (1.5x R:R Liquidity)    : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
                tp2_hits, tp2_pct, avg_tp2_pips, avg_tp2_pips * 0.10);
-   PrintFormat(" TP3 Hits (3.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
+   PrintFormat(" TP3 Hits (2.0x R:R Macro Runner) : %d Hits (%.1f%% Hit Rate) | Avg Distance: %.1f Pips ($%.2f)",
                tp3_hits, tp3_pct, avg_tp3_pips, avg_tp3_pips * 0.10);
    PrintFormat(" SL Hits (Full Stop Loss Exits)   : %d Deals (%.1f%% Loss Rate)| Avg Distance: %.1f Pips ($%.2f)",
                sl_hits, sl_pct, avg_sl_pips, avg_sl_pips * 0.10);
@@ -570,10 +570,10 @@ void OnTick()
       sl_price = entry_price + sl_dist_dollars;
    }
 
-   // Target Math (TP1 = 1.0x, TP2 = 1.5x, TP3 = 3.0x)
+   // Target Math (TP1 = 1.0x, TP2 = 1.5x, TP3 = 2.0x)
    double tp1_price = is_buy ? (entry_price + sl_dist_dollars * 1.0) : (entry_price - sl_dist_dollars * 1.0);
    double tp2_price = is_buy ? (entry_price + sl_dist_dollars * 1.5) : (entry_price - sl_dist_dollars * 1.5);
-   double tp3_price = is_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
+   double tp3_price = is_buy ? (entry_price + sl_dist_dollars * 2.0) : (entry_price - sl_dist_dollars * 2.0);
 
    // 9. STEP 8: Dynamic Risk-to-Reward Gate (Completely Removed / Zero Filtering)
 
