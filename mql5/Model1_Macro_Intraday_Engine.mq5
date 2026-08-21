@@ -73,8 +73,10 @@ datetime       m_last_bar_time;
 
 // Operational Analytics
 int            m_total_setups_count;
-int            m_winning_setups_count;
-int            m_losing_setups_count;
+int            m_tp1_hits_count;
+int            m_tp2_hits_count;
+int            m_tp3_hits_count;
+int            m_sl_hits_count;
 
 //+------------------------------------------------------------------+
 //| Expert Initialization Function                                   |
@@ -84,8 +86,10 @@ int OnInit()
    m_trade.SetExpertMagicNumber(InpMagicNumber);
    m_last_bar_time = 0;
    m_total_setups_count = 0;
-   m_winning_setups_count = 0;
-   m_losing_setups_count = 0;
+   m_tp1_hits_count = 0;
+   m_tp2_hits_count = 0;
+   m_tp3_hits_count = 0;
+   m_sl_hits_count = 0;
 
    // Initialize Indicator Handles
    m_h1_ema21_handle = iMA(_Symbol, InpMacroTimeframe, 21, 0, MODE_EMA, PRICE_CLOSE);
@@ -206,6 +210,42 @@ void ManageOpenPositions()
 }
 
 //+------------------------------------------------------------------+
+//| OnTradeTransaction: Deal & Hit Counter Tracking                 |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
+{
+   if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
+   {
+      ulong deal_ticket = trans.deal;
+      if(deal_ticket <= 0) return;
+
+      if(HistoryDealSelect(deal_ticket))
+      {
+         long magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
+         if(magic != InpMagicNumber) return;
+
+         long entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+         if(entry == DEAL_ENTRY_OUT) // Deal exit!
+         {
+            double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT);
+            string comment = HistoryDealGetString(deal_ticket, DEAL_COMMENT);
+
+            if(profit < -0.01)
+            {
+               m_sl_hits_count++;
+            }
+            else if(profit > 0.01)
+            {
+               if(StringFind(comment, "T1") >= 0) m_tp1_hits_count++;
+               else if(StringFind(comment, "T2") >= 0) m_tp2_hits_count++;
+               else if(StringFind(comment, "T3") >= 0) m_tp3_hits_count++;
+            }
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
 //| On-Chart HUD Panel Renderer                                      |
 //+------------------------------------------------------------------+
 void RenderHUD(string macro_trend, string session_state, double last_fvg, int open_pos_count)
@@ -226,17 +266,26 @@ void RenderHUD(string macro_trend, string session_state, double last_fvg, int op
 
    color hud_color = (macro_trend == "BULLISH") ? clrLimeGreen : ((macro_trend == "BEARISH") ? clrCrimson : clrGold);
 
+   double tp1_pct = (m_total_setups_count > 0) ? ((double)m_tp1_hits_count / m_total_setups_count) * 100.0 : 0.0;
+   double tp2_pct = (m_total_setups_count > 0) ? ((double)m_tp2_hits_count / m_total_setups_count) * 100.0 : 0.0;
+   double tp3_pct = (m_total_setups_count > 0) ? ((double)m_tp3_hits_count / m_total_setups_count) * 100.0 : 0.0;
+
    string text = StringFormat(
       "=== MODEL 1: MACRO INTRADAY ENGINE (H4/H1/M15) ===\n" +
       "Symbol: %s | Timeframe: %s | Ask: $%.2f | Bid: $%.2f\n" +
       "H1 Macro Trend: %s | Session: %s\n" +
       "Displacement Floor: $%.2f | Last FVG: $%.2f\n" +
-      "Open Positions: %d | Total Setups Executed: %d",
+      "--------------------------------------------------\n" +
+      "Total Setups Triggered: %d | Open Positions: %d\n" +
+      "TP1 Hits (1.0x): %d (%.1f%%) | TP2 Hits (2.0x): %d (%.1f%%)\n" +
+      "TP3 Hits (3.0x): %d (%.1f%%) | SL Hits: %d",
       _Symbol, EnumToString(InpExecutionTimeframe),
       SymbolInfoDouble(_Symbol, SYMBOL_ASK), SymbolInfoDouble(_Symbol, SYMBOL_BID),
       macro_trend, session_state,
       InpFVGMinPips * 0.10, last_fvg,
-      open_pos_count, m_total_setups_count
+      m_total_setups_count, open_pos_count,
+      m_tp1_hits_count, tp1_pct, m_tp2_hits_count, tp2_pct,
+      m_tp3_hits_count, tp3_pct, m_sl_hits_count
    );
 
    ObjectSetString(0, hud_name, OBJPROP_TEXT, text);
@@ -440,8 +489,17 @@ void OnTick()
    PrintFormat("[MODEL 1 EXECUTION] %s Setup #%d Confirmed | SL: $%.2f ($%.2f) | TP1: $%.2f | TP2: $%.2f | TP3: $%.2f",
                is_buy ? "BUY" : "SELL", m_total_setups_count, sl_price, sl_dist_dollars, tp1_price, tp2_price, tp3_price);
 
-   m_trade.Buy(lot_t1, _Symbol, ask, sl_price, tp1_price, StringFormat("Model1_T1_#%d", m_total_setups_count));
-   m_trade.Buy(lot_t2, _Symbol, ask, sl_price, tp2_price, StringFormat("Model1_T2_#%d", m_total_setups_count));
-   m_trade.Buy(lot_t3, _Symbol, ask, sl_price, tp3_price, StringFormat("Model1_T3_#%d", m_total_setups_count));
+   if(is_buy)
+   {
+      m_trade.Buy(lot_t1, _Symbol, ask, sl_price, tp1_price, StringFormat("Model1_T1_#%d", m_total_setups_count));
+      m_trade.Buy(lot_t2, _Symbol, ask, sl_price, tp2_price, StringFormat("Model1_T2_#%d", m_total_setups_count));
+      m_trade.Buy(lot_t3, _Symbol, ask, sl_price, tp3_price, StringFormat("Model1_T3_#%d", m_total_setups_count));
+   }
+   else
+   {
+      m_trade.Sell(lot_t1, _Symbol, bid, sl_price, tp1_price, StringFormat("Model1_T1_#%d", m_total_setups_count));
+      m_trade.Sell(lot_t2, _Symbol, bid, sl_price, tp2_price, StringFormat("Model1_T2_#%d", m_total_setups_count));
+      m_trade.Sell(lot_t3, _Symbol, bid, sl_price, tp3_price, StringFormat("Model1_T3_#%d", m_total_setups_count));
+   }
 }
 //+------------------------------------------------------------------+
