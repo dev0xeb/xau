@@ -575,17 +575,7 @@ void OnTick()
    double tp2_price = is_buy ? (entry_price + sl_dist_dollars * 1.5) : (entry_price - sl_dist_dollars * 1.5);
    double tp3_price = is_buy ? (entry_price + sl_dist_dollars * 3.0) : (entry_price - sl_dist_dollars * 3.0);
 
-   // 9. STEP 8: Dynamic Risk-to-Reward Gate (Skipped / Disabled)
-   if(InpMinRRRatio > 0.0)
-   {
-      double tp2_rr = (MathAbs(tp2_price - entry_price) / sl_dist_dollars);
-      if(tp2_rr < InpMinRRRatio)
-      {
-         PrintFormat("[RR GATE REJECT] TP2 R:R (%.2fx) is below floor (%.2fx). Skipping entry.",
-                     tp2_rr, InpMinRRRatio);
-         return;
-      }
-   }
+   // 9. STEP 8: Dynamic Risk-to-Reward Gate (Completely Removed / Zero Filtering)
 
    // 10. STEP 9: 3-Ticket Order Execution
    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
