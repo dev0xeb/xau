@@ -144,6 +144,13 @@ void OnStart()
    EvaluateCandidateFilter("4. Require Active EMA21 Slope >= $0.20", records, total_trades, total_wins, total_losses, 4);
    EvaluateCandidateFilter("5. Restrict to London & NY (06:00-17:00)", records, total_trades, total_wins, total_losses, 5);
    EvaluateCandidateFilter("6. Require ATR Regime Ratio >= 1.00", records, total_trades, total_wins, total_losses, 6);
+   Print(" ---------------------------------------------------------------------------------------------------------------");
+   Print(" 🌟 MULTI-VARIABLE CONFLUENCE FILTERS:");
+   EvaluateCandidateFilter("7. Strong Trend ($5+) + FVG ($0.20+)", records, total_trades, total_wins, total_losses, 7);
+   EvaluateCandidateFilter("8. London/NY + High Vol (ATR >= 1.25)", records, total_trades, total_wins, total_losses, 8);
+   EvaluateCandidateFilter("9. Extended Trend ($10+) + Slope ($0.35+)", records, total_trades, total_wins, total_losses, 9);
+   EvaluateCandidateFilter("10. Exclude Toxic Hour 20:00 UTC", records, total_trades, total_wins, total_losses, 10);
+   EvaluateCandidateFilter("11. ML Quality Gate (Score >= 0.65)", records, total_trades, total_wins, total_losses, 11);
 
    Print("=========================================================================================");
    Print(" 🏆 PHASE 3 EVALUATION COMPLETED!");
@@ -192,6 +199,31 @@ void EvaluateCandidateFilter(string filter_name, const Phase3Record &records[], 
       else if(mode == 6) // Require ATR Regime >= 1.00
       {
          if(records[r].atr_regime < 1.00)
+            pass_filter = false;
+      }
+      else if(mode == 7) // Strong Trend ($5+) AND FVG ($0.20+)
+      {
+         if(records[r].trend_strength < 5.00 || records[r].fvg_size_pips < 20.0)
+            pass_filter = false;
+      }
+      else if(mode == 8) // London/NY AND High Vol (ATR >= 1.25)
+      {
+         if(records[r].hour_utc < 6 || records[r].hour_utc >= 17 || records[r].atr_regime < 1.25)
+            pass_filter = false;
+      }
+      else if(mode == 9) // Extended Trend ($10+) AND Slope ($0.35+)
+      {
+         if(records[r].trend_strength < 10.00 || records[r].ema21_slope < 0.35)
+            pass_filter = false;
+      }
+      else if(mode == 10) // Exclude Toxic Hour 20:00 UTC
+      {
+         if(records[r].hour_utc == 20)
+            pass_filter = false;
+      }
+      else if(mode == 11) // ML Quality Gate Score >= 0.65
+      {
+         if(records[r].ml_prob < 0.65)
             pass_filter = false;
       }
 
